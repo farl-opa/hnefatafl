@@ -140,7 +140,7 @@ async fn main() {
 
     // Endpoint: List all games
     let list_games = warp::path("list")
-        .and(warp::get())
+        .and(warp::get())  
         .and(state_filter.clone())
         .and_then(|state: AppState| async move {
             let games = state.games.write().await;
