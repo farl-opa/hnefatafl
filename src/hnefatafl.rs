@@ -151,6 +151,9 @@ impl GameState {
         if let Some(winner) = self.check_win_condition() {
             self.game_over = true;
             self.winner = Some(winner);
+            let mut win_msg = winner.to_string();
+            win_msg.push_str(" wins!");
+            return Err(win_msg);
         } else {
             // Switch turns
             self.current_turn = if self.current_turn == Cell::Attacker {
@@ -247,14 +250,12 @@ impl GameState {
 
     fn check_win_condition(&self) -> Option<Cell> {
         // Check if the king reached an edge
-        for i in 0..self.board.len() {
-            if self.board[0][i] == Cell::King
-                || self.board[self.board.len() - 1][i] == Cell::King
-                || self.board[i][0] == Cell::King
-                || self.board[i][self.board.len() - 1] == Cell::King
-            {
-                return Some(Cell::King); // King wins
-            }
+        if self.board[0][self.board.len() - 1] == Cell::King
+            || self.board[self.board.len() - 1][0] == Cell::King
+            || self.board[self.board.len() - 1][0] == Cell::King
+            || self.board[0][self.board.len() - 1] == Cell::King
+        {
+            return Some(Cell::King); // King wins
         }
 
         // Check if the king is surrounded
