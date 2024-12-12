@@ -163,10 +163,10 @@ impl GameState {
         for (i, &(nx, ny)) in neighbors.iter().enumerate() {
             if self.is_within_bounds((nx, ny)) {
                 let (nnx, nny) = match i {
-                    0 => (nx - 1, ny),      // Up (check the cell above the neighbor)
-                    1 => (nx + 1, ny),      // Down (check the cell below the neighbor)
-                    2 => (nx, ny - 1),      // Left (check the cell to the left of the neighbor)
-                    3 => (nx, ny + 1),      // Right (check the cell to the right of the neighbor)
+                    0 => if nx > 0 { (nx - 1, ny) } else { continue },      // Up (check the cell above the neighbor)
+                    1 => (nx + 1, ny),                                      // Down (check the cell below the neighbor)
+                    2 => if ny > 0 { (nx, ny - 1) } else { continue },      // Left (check the cell to the left of the neighbor)
+                    3 => (nx, ny + 1),                                      // Right (check the cell to the right of the neighbor)
                     _ => unreachable!(),
                     };
 
@@ -216,15 +216,6 @@ impl GameState {
     fn is_valid_move(&self, from: (usize, usize), to: (usize, usize)) -> bool {
         if from == to || !self.is_within_bounds(to) {
             return false;
-        }
-
-        let piece = &self.board[from.0][from.1];
-        if *piece != self.current_turn && *piece != Cell::King {
-            return false; // Must move your own piece
-        }
-
-        if self.board[to.0][to.1] != Cell::Empty {
-            return false; // Destination must be empty
         }
 
         // Ensure it's a straight-line move
