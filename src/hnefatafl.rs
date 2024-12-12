@@ -94,7 +94,7 @@ impl GameState {
             }
         } else {
             // Second click
-            if self.board[row][col] != Cell::Empty && self.board[row][col] != Cell::Corner {
+            if self.board[row][col] != Cell::Empty {
                 self.click_count -= 1;
                 return Err("Select an empty cell to move to.".to_string());
             }  
@@ -171,6 +171,7 @@ impl GameState {
                     };
 
                 if self.board[nx][ny] == (if cell == Cell::Attacker { Cell::Defender } else { Cell::Attacker }) 
+                    && self.is_within_bounds((nnx, nny))
                     && self.board[nnx][nny] == cell 
                 {
                     self.board[nx][ny] = Cell::Empty;
