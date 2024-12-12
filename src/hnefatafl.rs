@@ -1,6 +1,7 @@
 #[warn(unused_variables)]
 
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub enum Cell {
@@ -9,6 +10,18 @@ pub enum Cell {
     Defender,
     King,
     Corner
+}
+
+impl fmt::Display for Cell {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Cell::Empty => write!(f, "Empty"),
+            Cell::Attacker => write!(f, "Attacker"),
+            Cell::Defender => write!(f, "Defender"),
+            Cell::King => write!(f, "King"),
+            Cell::Corner => write!(f, "Corner"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -152,9 +165,9 @@ impl GameState {
 
     fn check_captures(&mut self, pos: (usize, usize)) -> Result<(), String> {
         let neighbors = [
-            (pos.0 - 1, pos.1), // Up
+            (pos.0.wrapping_sub(1), pos.1), // Up
             (pos.0 + 1, pos.1), // Down
-            (pos.0, pos.1 - 1), // Left
+            (pos.0, pos.1.wrapping_sub(1)), // Left
             (pos.0, pos.1 + 1), // Right
         ];
 
@@ -170,9 +183,9 @@ impl GameState {
                     _ => unreachable!(),
                     };
 
-                if self.board[nx][ny] == (if cell == Cell::Attacker { Cell::Defender } else { Cell::Attacker }) 
+                if self.board[nx][ny] == (if cell == Cell::Attacker { Cell::Defender } else { Cell::Attacker })
                     && self.is_within_bounds((nnx, nny))
-                    && self.board[nnx][nny] == cell 
+                    && (self.board[nnx][nny] == cell || self.board[nnx][nny] == Cell::Corner) 
                 {
                     self.board[nx][ny] = Cell::Empty;
                 }

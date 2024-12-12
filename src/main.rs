@@ -80,6 +80,7 @@ async fn main() {
             let mut games = state.games.write().await;
             let game = GameState::new();
             let board_html = render_board_as_html(&game.board);
+            let current_turn = game.current_turn.clone();
             games.push(Some(game)); // Store the new game
             let response = format!(
                 r#"<!DOCTYPE html>
@@ -88,7 +89,8 @@ async fn main() {
                 <head>
                     <meta charset="UTF-8">
                     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <title>Hnefatafl Game</title>
+                    <h1 style="text-align: center;">Hnefatafl Game</h1>
+                    <h2 style="text-align: center;">Current turn: {}</h2>
                     {}
                     <script>
                         function handleCellClick(row, col) {{
@@ -104,6 +106,7 @@ async fn main() {
                                 if (data.success) {{
                                     // Update the board on success
                                     document.getElementById('board-container').innerHTML = data.board_html;
+                                    document.querySelector('h2').innerText = 'Current turn: ' + data.current_turn;
                                 }} else {{
                                     alert(data.error || 'An error occurred');
                                 }}
@@ -119,9 +122,61 @@ async fn main() {
                     </div>
                 </body>
                 </html>"#,
-                CSS, board_html
+                current_turn, CSS, board_html
             );
             Ok::<_, warp::Rejection>(warp::reply::html(response))
+        });
+
+    // Endpoint to handle cell clicks
+    let cell_click = warp::path("cell-click")
+        .and(warp::post())
+        .and(warp::body::json())
+        .and(state_filter.clone())
+        .and_then(|click: CellClick, state: AppState| async move {
+            let mut games = state.games.write().await;
+            if let Some(game) = games.last_mut().and_then(Option::as_mut) {
+                // Call process_click and handle the result
+                match game.process_click(click.row, click.col) {
+                    Ok(_) => {
+                        let board_html = render_board_as_html(&game.board);
+                        let current_turn = game.current_turn.clone();
+                        Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+                            "success": true,
+                            "board_html": board_html,
+                            "current_turn": current_turn
+                        })))
+                    }
+                    Err(error_message) => {
+                        Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+                            "success": false,
+                            "error": error_message
+                        })))
+                    }
+                }
+            } else {
+                Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+                    "success": false,
+                    "error": "No active game"
+                })))
+            }
+        });
+
+
+    // Endpoint: Make a move
+    let make_move = warp::path("move")
+        .and(warp::post())
+        .and(warp::body::json())
+        .and(state_filter.clone())
+        .and_then(|move_request: MoveRequest, state: AppState| async move {
+            let mut games = state.games.write().await;
+            if let Some(Some(game)) = games.get_mut(move_request.game_id) {
+                match game.make_move(move_request.from, move_request.to) {
+                    Ok(_) => Ok::<_, warp::Rejection>(warp::reply::json(&game)),
+                    Err(e) => Ok::<_, warp::Rejection>(warp::reply::json(&e)),
+                }
+            } else {
+                Ok::<_, warp::Rejection>(warp::reply::json(&"Game not found or ended"))
+            }
         });
 
 
@@ -187,56 +242,6 @@ async fn main() {
                 Ok::<_, warp::Rejection>(warp::reply::json(&"Game ended successfully"))
             } else {
                 Ok::<_, warp::Rejection>(warp::reply::json(&"Game not found"))
-            }
-        });
-
-    // Endpoint to handle cell clicks
-    let cell_click = warp::path("cell-click")
-        .and(warp::post())
-        .and(warp::body::json())
-        .and(state_filter.clone())
-        .and_then(|click: CellClick, state: AppState| async move {
-            let mut games = state.games.write().await;
-            if let Some(game) = games.last_mut().and_then(Option::as_mut) {
-                // Call process_click and handle the result
-                match game.process_click(click.row, click.col) {
-                    Ok(_) => {
-                        let board_html = render_board_as_html(&game.board);
-                        Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
-                            "success": true,
-                            "board_html": board_html
-                        })))
-                    }
-                    Err(error_message) => {
-                        Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
-                            "success": false,
-                            "error": error_message
-                        })))
-                    }
-                }
-            } else {
-                Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
-                    "success": false,
-                    "error": "No active game"
-                })))
-            }
-        });
-
-
-    // Endpoint: Make a move
-    let make_move = warp::path("move")
-        .and(warp::post())
-        .and(warp::body::json())
-        .and(state_filter.clone())
-        .and_then(|move_request: MoveRequest, state: AppState| async move {
-            let mut games = state.games.write().await;
-            if let Some(Some(game)) = games.get_mut(move_request.game_id) {
-                match game.make_move(move_request.from, move_request.to) {
-                    Ok(_) => Ok::<_, warp::Rejection>(warp::reply::json(&game)),
-                    Err(e) => Ok::<_, warp::Rejection>(warp::reply::json(&e)),
-                }
-            } else {
-                Ok::<_, warp::Rejection>(warp::reply::json(&"Game not found or ended"))
             }
         });
 
