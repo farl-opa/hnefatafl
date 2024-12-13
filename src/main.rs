@@ -3,7 +3,7 @@
 use warp::Filter;
 use std::sync::Arc;
 mod hnefatafl;
-use hnefatafl::{GameState, Cell};
+use hnefatafl::{GameState, Cell, CellType};
 use serde::Deserialize;
 use tokio::sync::RwLock;
 
@@ -85,7 +85,7 @@ async fn main() {
             let mut games = state.games.write().await;
             let game = GameState::new();
             let board_html = render_board_as_html(&game.board);
-            let current_turn = game.current_turn.clone();
+            let current_turn = game.current_turn.cell_type.clone();
             games.push(Some(game)); // Store the new game
             let response = format!(
                 r#"<!DOCTYPE html>
@@ -143,7 +143,7 @@ async fn main() {
                 match game.process_click(click.row, click.col) {
                     Ok(_) => {
                         let board_html = render_board_as_html(&game.board);
-                        let current_turn = game.current_turn.clone();
+                        let current_turn = game.current_turn.cell_type.clone();
                         Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
                             "success": true,
                             "board_html": board_html,
@@ -282,25 +282,30 @@ fn render_board_as_html(board: &Vec<Vec<Cell>>) -> String {
 
         let mut col_idx = 0;
         for cell in row {
-            let (class, content) = match cell {
-                Cell::Empty => ("empty", ""),
-                Cell::Attacker => (
+            // Determine the class and content based on the cell type
+            let (class, content) = match cell.cell_type {
+                CellType::Empty => ("empty", ""),
+                CellType::Attacker => (
                     "attacker",
                     r#"<img src="/images/attacker.png" alt="Attacker" class="piece" />"#,
                 ),
-                Cell::Defender => (
+                CellType::Defender => (
                     "defender",
                     r#"<img src="/images/defender.png" alt="Defender" class="piece" />"#,
                 ),
-                Cell::King => (
+                CellType::King => (
                     "king",
                     r#"<img src="/images/king.png" alt="King" class="piece" />"#,
                 ),
-                Cell::Corner => ("corner", ""),
             };
+
+            // If the cell is a corner, you can add specific styles or content for corners
+            let corner_class = if cell.is_corner {" corner-cell" } else { "" };
+
+            // Render the cell as an HTML table cell (<td>)
             html.push_str(&format!(
-                r#"<td id="cell-{}-{}" class="{}" onclick="handleCellClick({}, {})">{}</td>"#,
-                row_idx, col_idx, class, row_idx, col_idx, content
+                r#"<td id="cell-{}-{}" class="{}{}" onclick="handleCellClick({}, {})">{}</td>"#,
+                row_idx, col_idx, class, corner_class, row_idx, col_idx, content
             ));
             col_idx += 1;
         }
@@ -347,18 +352,19 @@ const CSS: &str = r#"
         font-size: 16px;
     }
     .piece {
-    width: 35px;
-    height: 35px;
+        width: 35px;
+        height: 35px;
     }
     .empty { background-color: #f0f0f0; }
     .attacker { background-color: #f0f0f0; }
     .defender { background-color: #f0f0f0; }
     .king { background-color: #f0f0f0; }
-    .corner { background-color: #8cf367; }
+    .corner-cell { background-color: #8cf367; }
     .coordinates {
         font-size: 12px;
         font-weight: normal;
     }
 </style>
+
 
 "#;

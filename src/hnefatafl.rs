@@ -4,23 +4,35 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
-pub enum Cell {
+pub enum CellType {
     Empty,
     Attacker,
     Defender,
     King,
-    Corner
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub struct Cell {
+    pub cell_type: CellType,
+    pub is_corner: bool,
+}
+
+
+impl fmt::Display for CellType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CellType::Empty => write!(f, "Empty"),
+            CellType::Attacker => write!(f, "Attacker"),
+            CellType::Defender => write!(f, "Defender"),
+            CellType::King => write!(f, "King"),
+        }
+    }
 }
 
 impl fmt::Display for Cell {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Cell::Empty => write!(f, "Empty"),
-            Cell::Attacker => write!(f, "Attacker"),
-            Cell::Defender => write!(f, "Defender"),
-            Cell::King => write!(f, "King"),
-            Cell::Corner => write!(f, "Corner"),
-        }
+        // Display the CellType and include whether it's a corner
+        write!(f, "{}{}", self.cell_type, if self.is_corner { " (Corner)" } else { "" })
     }
 }
 
@@ -37,10 +49,18 @@ pub struct GameState {
 impl GameState {
     /// Creates a new game with the initial Hnefatafl board.
     pub fn new() -> Self {
-        let mut board = vec![vec![Cell::Empty; 11]; 11];
+        let mut board = vec![
+            vec![
+                Cell {
+                    cell_type: CellType::Empty,
+                    is_corner: false,
+                }; 11
+            ];
+            11
+        ];
 
         // Place attackers (black)
-        for &pos in &[
+        for &pos in &[ 
             (0, 3), (0, 4), (0, 5), (0, 6), (0, 7),
             (1, 5),
             (3, 0), (4, 0), (5, 0), (6, 0), (7, 0),
@@ -50,73 +70,94 @@ impl GameState {
             (3, 10), (4, 10), (5, 10), (6, 10), (7, 10),
             (5, 9),
         ] {
-            board[pos.0][pos.1] = Cell::Attacker;
+            board[pos.0][pos.1] = Cell {
+                cell_type: CellType::Attacker,
+                is_corner: false,
+            };
         }
 
         // Place defenders (white)
-        for &pos in &[
+        for &pos in &[ 
             (3, 5),
             (4, 4), (4, 5), (4, 6),            
             (5, 3), (5, 4), (5, 6), (5, 7),
             (6, 4), (6, 5), (6, 6),
             (7, 5),
         ] {
-            board[pos.0][pos.1] = Cell::Defender;
+            board[pos.0][pos.1] = Cell {
+                cell_type: CellType::Defender,
+                is_corner: false,
+            };
         }
 
-        // Place corners
-        for &pos in &[
-            (0, 0), (0, 10), (10, 0), (10, 10), (5, 5)
+        // Place corners (marking corner cells with is_corner = true)
+        for &pos in &[ 
+            (0, 0), (0, 10), (10, 0), (10, 10)
         ] {
-            board[pos.0][pos.1] = Cell::Corner;
+            board[pos.0][pos.1] = Cell {
+                cell_type: CellType::Empty, // Corner is empty but still marked as a corner
+                is_corner: true,
+            };
         }
 
-        // Place the king
-        board[5][5] = Cell::King;
+        // Place the king (with a specific cell type)
+        board[5][5] = Cell {
+            cell_type: CellType::King,
+            is_corner: true,
+        };
 
+        // Return the GameState instance
         GameState {
             board,
-            current_turn: Cell::Attacker,
+            current_turn: Cell {
+                cell_type: CellType::Attacker,
+                is_corner: false, // Current turn doesn't relate to corners directly
+            },
             game_over: false,
             winner: None,
             click_count: 1,
             from: (0, 0),
         }
     }
-
+    
     pub fn process_click(&mut self, row: usize, col: usize) -> Result<(), String> {
         // Validate and process the click based on the game state
         if row >= self.board.len() || col >= self.board[0].len() {
             return Err("Invalid cell coordinates.".to_string());
         }
-
+    
+        let clicked_cell = &self.board[row][col];
+    
         if self.click_count % 2 == 1 {
-            // First click
-            if self.board[row][col] == Cell::Empty || self.board[row][col] == Cell::Corner {
+            // First click: Select a piece to move
+            if clicked_cell.cell_type == CellType::Empty {
                 return Err("Select a piece to move.".to_string());
             }
-            else if self.board[row][col] == Cell::Defender && self.current_turn == Cell::Attacker {
+            else if clicked_cell.cell_type == CellType::Defender && self.current_turn.cell_type == CellType::Attacker {
                 return Err("Cannot move the defender's piece.".to_string());
             }
-            else if self.board[row][col] == Cell::Attacker && self.current_turn == Cell::Defender {
+            else if clicked_cell.cell_type == CellType::King && self.current_turn.cell_type == CellType::Attacker {
+                return Err("Cannot move the defender's piece.".to_string());
+            }
+            else if clicked_cell.cell_type == CellType::Attacker && self.current_turn.cell_type == CellType::Defender {
                 return Err("Cannot move the attacker's piece.".to_string());
-            }            
+            }
             else {
                 self.click_count += 1;
                 self.from = (row, col);
             }
         } else {
-            // Second click
-            if self.board[row][col] != Cell::Empty {
+            // Second click: Select an empty cell to move to
+            if clicked_cell.cell_type != CellType::Empty {
                 self.click_count -= 1;
                 return Err("Select an empty cell to move to.".to_string());
-            }  
-            else if self.board[row][col] == Cell::Corner && self.board[self.from.0][self.from.1] != Cell::King {
+            }
+            else if clicked_cell.is_corner && self.board[self.from.0][self.from.1].cell_type != CellType::King {
                 self.click_count -= 1;
                 return Err("Cannot move to the corner.".to_string());
             }
             else {
-                // Make the move              
+                // Make the move
                 match self.make_move(self.from, (row, col)) {
                     Ok(_) => {
                         self.click_count += 1;
@@ -129,24 +170,47 @@ impl GameState {
         }
         Ok(())
     }
-
+    
     pub fn make_move(&mut self, from: (usize, usize), to: (usize, usize)) -> Result<(), String> {
         if self.game_over {
             return Err("Game is already over.".to_string());
         }
-
+    
         // Validate the move
         if !self.is_valid_move(from, to) {
             return Err("Invalid move.".to_string());
         }
-
+    
         // Make the move
-        self.board[to.0][to.1] = self.board[from.0][from.1].clone();
-        self.board[from.0][from.1] = Cell::Empty;
+        let mut moved_piece = self.board[from.0][from.1].clone();
+        if moved_piece.is_corner == true{
+            moved_piece.is_corner = false;
+        }
 
-        // Check for captures
+        // Place the piece at the new position
+        if self.board[to.0][to.1].is_corner == false{
+            self.board[to.0][to.1] = moved_piece; 
+        } else { 
+            self.board[to.0][to.1] = moved_piece;
+            self.board[to.0][to.1].is_corner = true;
+        }
+    
+        // Clear the original position
+        if self.board[from.0][from.1].is_corner {
+            self.board[from.0][from.1] = Cell {
+                cell_type: CellType::Empty,
+                is_corner: true, // The original cell was a corner
+            };
+        } else {
+            self.board[from.0][from.1] = Cell {
+                cell_type: CellType::Empty,
+                is_corner: false, // The original cell was not a corner
+            };
+        }
+    
+        // Check for captures at the new position
         self.check_captures(to)?;
-
+    
         // Check win conditions
         if let Some(winner) = self.check_win_condition() {
             self.game_over = true;
@@ -156,26 +220,34 @@ impl GameState {
             return Err(win_msg);
         } else {
             // Switch turns
-            self.current_turn = if self.current_turn == Cell::Attacker {
-                Cell::Defender
+            self.current_turn = if self.current_turn.cell_type == CellType::Attacker {
+                Cell {
+                    cell_type: CellType::Defender,
+                    is_corner: false, // or true, depending on your game rules
+                }
             } else {
-                Cell::Attacker
+                Cell {
+                    cell_type: CellType::Attacker,
+                    is_corner: false, // or true, depending on your game rules
+                }
             };
         }
-
+    
         Ok(())
     }
+    
+       
 
-    fn check_captures(&mut self, pos: (usize, usize)) -> Result<(), String> {
+    pub fn check_captures(&mut self, pos: (usize, usize)) -> Result<(), String> {
         let neighbors = [
             (pos.0.wrapping_sub(1), pos.1), // Up
             (pos.0 + 1, pos.1), // Down
             (pos.0, pos.1.wrapping_sub(1)), // Left
             (pos.0, pos.1 + 1), // Right
         ];
-
-        let cell = self.board[pos.0][pos.1];
-
+    
+        let cell = self.board[pos.0][pos.1].clone(); // Clone the current cell (with cell_type and is_corner)
+    
         for (i, &(nx, ny)) in neighbors.iter().enumerate() {
             if self.is_within_bounds((nx, ny)) {
                 let (nnx, nny) = match i {
@@ -184,20 +256,34 @@ impl GameState {
                     2 => if ny > 0 { (nx, ny - 1) } else { continue },      // Left (check the cell to the left of the neighbor)
                     3 => (nx, ny + 1),                                      // Right (check the cell to the right of the neighbor)
                     _ => unreachable!(),
-                    };
-
-                if self.board[nx][ny] == (if cell == Cell::Attacker { Cell::Defender } else { Cell::Attacker })
+                };
+    
+                // Determine the opposite piece
+                let opposite = if cell.cell_type == CellType::Attacker {
+                    CellType::Defender
+                } else {
+                    CellType::Attacker
+                };
+    
+                // Check if the neighbor is an opponent's piece and the adjacent piece is the same player's or a corner
+                if self.board[nx][ny].cell_type == opposite
                     && self.is_within_bounds((nnx, nny))
-                    && (self.board[nnx][nny] == cell || self.board[nnx][nny] == Cell::Corner) 
+                    && (self.board[nnx][nny].cell_type == cell.cell_type || self.board[nnx][nny].is_corner)
                 {
-                    self.board[nx][ny] = Cell::Empty;
+                    // Capture the opponent's piece by setting it to Empty
+                    self.board[nx][ny] = Cell {
+                        cell_type: CellType::Empty,
+                        is_corner: false, // Reset the corner status after capture
+                    };
                 }
             }
-            
         }
-
+    
         Ok(())
     }
+    
+    
+    
 
 
     /// Checks if the given position is within board bounds.
@@ -207,28 +293,29 @@ impl GameState {
     }
 
     /// Checks if the path between two points is clear.
-    fn is_path_clear(&self, from: (usize, usize), to: (usize, usize)) -> bool {
-        let (row, col) = from;
-        if row == to.0 {
-            // Horizontal move
-            let range: Vec<_> = if col < to.1 {
-                (col + 1..=to.1).collect()
-            } else {
-                (to.1..=col - 1).rev().collect()
-            };
-            range.iter().all(|&c| self.board[row][c] == Cell::Empty)
-        } else if col == to.1 {
-            // Vertical move
-            let range: Vec<_> = if row < to.0 {
-                (row + 1..=to.0).collect()
-            } else {
-                (to.0..=row - 1).rev().collect()
-            };
-            range.iter().all(|&r| self.board[r][col] == Cell::Empty)
+fn is_path_clear(&self, from: (usize, usize), to: (usize, usize)) -> bool {
+    let (row, col) = from;
+    
+    if row == to.0 {
+        // Horizontal move
+        let range: Vec<_> = if col < to.1 {
+            (col + 1..=to.1).collect()
         } else {
-            false
-        }
+            (to.1..=col - 1).rev().collect()
+        };
+        range.iter().all(|&c| self.board[row][c].cell_type == CellType::Empty)
+    } else if col == to.1 {
+        // Vertical move
+        let range: Vec<_> = if row < to.0 {
+            (row + 1..=to.0).collect()
+        } else {
+            (to.0..=row - 1).rev().collect()
+        };
+        range.iter().all(|&r| self.board[r][col].cell_type == CellType::Empty)
+    } else {
+        false
     }
+}
 
     fn is_valid_move(&self, from: (usize, usize), to: (usize, usize)) -> bool {
         if from == to || !self.is_within_bounds(to) {
@@ -249,22 +336,25 @@ impl GameState {
     }
 
     fn check_win_condition(&self) -> Option<Cell> {
-        // Check if the king reached an edge
-        if self.board[0][self.board.len() - 1] == Cell::King
-            || self.board[self.board.len() - 1][0] == Cell::King
-            || self.board[self.board.len() - 1][0] == Cell::King
-            || self.board[0][self.board.len() - 1] == Cell::King
+        // Check if the king reached an edge (the edges are corners)
+        if self.board[0][self.board.len() - 1].cell_type == CellType::King
+            || self.board[self.board.len() - 1][0].cell_type == CellType::King
+            || self.board[self.board.len() - 1][0].cell_type == CellType::King
+            || self.board[0][self.board.len() - 1].cell_type == CellType::King
         {
-            return Some(Cell::King); // King wins
+            return Some(Cell {
+                cell_type: CellType::King,
+                is_corner: false, // This is up to your game logic to define
+            });
         }
-
+    
         // Check if the king is surrounded
         let king_pos = self
             .board
             .iter()
             .enumerate()
-            .find_map(|(r, row)| row.iter().position(|&c| c == Cell::King).map(|c| (r, c)));
-
+            .find_map(|(r, row)| row.iter().position(|c| c.cell_type == CellType::King).map(|c| (r, c)));
+    
         if let Some((kr, kc)) = king_pos {
             let neighbors = [
                 (kr.wrapping_sub(1), kc),
@@ -272,16 +362,22 @@ impl GameState {
                 (kr, kc.wrapping_sub(1)),
                 (kr, kc + 1),
             ];
-
+    
             if neighbors
                 .iter()
-                .all(|&(nr, nc)| self.is_within_bounds((nr, nc)) && self.board[nr][nc] == Cell::Attacker)
+                .all(|&(nr, nc)| {
+                    self.is_within_bounds((nr, nc))
+                        && self.board[nr][nc].cell_type == CellType::Attacker
+                })
             {
-                return Some(Cell::Attacker); // Attackers win
+                return Some(Cell {
+                    cell_type: CellType::Attacker,
+                    is_corner: false, // Again, you can modify this logic as needed
+                }); // Attackers win
             }
         }
-
+    
         None
     }
-
+    
 }
