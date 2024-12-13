@@ -15,6 +15,7 @@ pub enum CellType {
 pub struct Cell {
     pub cell_type: CellType,
     pub is_corner: bool,
+    pub is_throne: bool,
 }
 
 
@@ -31,8 +32,19 @@ impl fmt::Display for CellType {
 
 impl fmt::Display for Cell {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Display the CellType and include whether it's a corner
-        write!(f, "{}{}", self.cell_type, if self.is_corner { " (Corner)" } else { "" })
+        // Build the string for cell type and additional information (Corner and/or Throne)
+        let mut display_str = self.cell_type.to_string(); // Get the cell's type as string
+
+        // Append Corner or Throne information
+        if self.is_corner {
+            display_str.push_str(" (Corner)");
+        }
+        if self.is_throne {
+            display_str.push_str(" (Throne)");
+        }
+
+        // Write the final string to the formatter
+        write!(f, "{}", display_str)
     }
 }
 
@@ -54,6 +66,7 @@ impl GameState {
                 Cell {
                     cell_type: CellType::Empty,
                     is_corner: false,
+                    is_throne: false
                 }; 11
             ];
             11
@@ -73,6 +86,7 @@ impl GameState {
             board[pos.0][pos.1] = Cell {
                 cell_type: CellType::Attacker,
                 is_corner: false,
+                is_throne: false,
             };
         }
 
@@ -87,6 +101,7 @@ impl GameState {
             board[pos.0][pos.1] = Cell {
                 cell_type: CellType::Defender,
                 is_corner: false,
+                is_throne: false,
             };
         }
 
@@ -97,13 +112,15 @@ impl GameState {
             board[pos.0][pos.1] = Cell {
                 cell_type: CellType::Empty, // Corner is empty but still marked as a corner
                 is_corner: true,
+                is_throne: false,
             };
         }
 
         // Place the king (with a specific cell type)
         board[5][5] = Cell {
             cell_type: CellType::King,
-            is_corner: true,
+            is_corner: false,
+            is_throne: true,
         };
 
         // Return the GameState instance
@@ -111,7 +128,8 @@ impl GameState {
             board,
             current_turn: Cell {
                 cell_type: CellType::Attacker,
-                is_corner: false, // Current turn doesn't relate to corners directly
+                is_corner: false,
+                is_throne: false, // Current turn doesn't relate to corners directly
             },
             game_over: false,
             winner: None,
@@ -156,6 +174,10 @@ impl GameState {
                 self.click_count -= 1;
                 return Err("Cannot move to the corner.".to_string());
             }
+            else if clicked_cell.is_throne && self.board[self.from.0][self.from.1].cell_type != CellType::King {
+                self.click_count -= 1;
+                return Err("Cannot move to the throne.".to_string());
+            }
             else {
                 // Make the move
                 match self.make_move(self.from, (row, col)) {
@@ -183,28 +205,30 @@ impl GameState {
     
         // Make the move
         let mut moved_piece = self.board[from.0][from.1].clone();
-        if moved_piece.is_corner == true{
-            moved_piece.is_corner = false;
+        if moved_piece.is_throne == true{
+            moved_piece.is_throne = false;
         }
 
         // Place the piece at the new position
-        if self.board[to.0][to.1].is_corner == false{
+        if self.board[to.0][to.1].is_throne == false{
             self.board[to.0][to.1] = moved_piece; 
         } else { 
             self.board[to.0][to.1] = moved_piece;
-            self.board[to.0][to.1].is_corner = true;
+            self.board[to.0][to.1].is_throne = true;
         }
     
         // Clear the original position
-        if self.board[from.0][from.1].is_corner {
+        if self.board[from.0][from.1].is_throne {
             self.board[from.0][from.1] = Cell {
                 cell_type: CellType::Empty,
-                is_corner: true, // The original cell was a corner
+                is_corner: false,
+                is_throne: true, // The original cell was the throne
             };
         } else {
             self.board[from.0][from.1] = Cell {
                 cell_type: CellType::Empty,
-                is_corner: false, // The original cell was not a corner
+                is_corner: false,
+                is_throne: false, // The original cell was not the throne
             };
         }
     
@@ -224,11 +248,13 @@ impl GameState {
                 Cell {
                     cell_type: CellType::Defender,
                     is_corner: false, // or true, depending on your game rules
+                    is_throne: false,
                 }
             } else {
                 Cell {
                     cell_type: CellType::Attacker,
                     is_corner: false, // or true, depending on your game rules
+                    is_throne: false,
                 }
             };
         }
@@ -274,6 +300,7 @@ impl GameState {
                     self.board[nx][ny] = Cell {
                         cell_type: CellType::Empty,
                         is_corner: false, // Reset the corner status after capture
+                        is_throne: false,
                     };
                 }
             }
@@ -293,29 +320,29 @@ impl GameState {
     }
 
     /// Checks if the path between two points is clear.
-fn is_path_clear(&self, from: (usize, usize), to: (usize, usize)) -> bool {
-    let (row, col) = from;
+    fn is_path_clear(&self, from: (usize, usize), to: (usize, usize)) -> bool {
+        let (row, col) = from;
     
-    if row == to.0 {
-        // Horizontal move
-        let range: Vec<_> = if col < to.1 {
-            (col + 1..=to.1).collect()
+        if row == to.0 {
+            // Horizontal move
+            let range: Vec<_> = if col < to.1 {
+                (col + 1..=to.1).collect()
+            } else {
+                (to.1..=col - 1).rev().collect()
+            };
+            range.iter().all(|&c| self.board[row][c].cell_type == CellType::Empty)
+        } else if col == to.1 {
+            // Vertical move
+            let range: Vec<_> = if row < to.0 {
+             (row + 1..=to.0).collect()
+            } else {
+                (to.0..=row - 1).rev().collect()
+            };
+            range.iter().all(|&r| self.board[r][col].cell_type == CellType::Empty)
         } else {
-            (to.1..=col - 1).rev().collect()
-        };
-        range.iter().all(|&c| self.board[row][c].cell_type == CellType::Empty)
-    } else if col == to.1 {
-        // Vertical move
-        let range: Vec<_> = if row < to.0 {
-            (row + 1..=to.0).collect()
-        } else {
-            (to.0..=row - 1).rev().collect()
-        };
-        range.iter().all(|&r| self.board[r][col].cell_type == CellType::Empty)
-    } else {
-        false
+            false
+        }
     }
-}
 
     fn is_valid_move(&self, from: (usize, usize), to: (usize, usize)) -> bool {
         if from == to || !self.is_within_bounds(to) {
@@ -345,6 +372,7 @@ fn is_path_clear(&self, from: (usize, usize), to: (usize, usize)) -> bool {
             return Some(Cell {
                 cell_type: CellType::King,
                 is_corner: false, // This is up to your game logic to define
+                is_throne: false,
             });
         }
     
@@ -372,7 +400,8 @@ fn is_path_clear(&self, from: (usize, usize), to: (usize, usize)) -> bool {
             {
                 return Some(Cell {
                     cell_type: CellType::Attacker,
-                    is_corner: false, // Again, you can modify this logic as needed
+                    is_corner: false,
+                    is_throne: false
                 }); // Attackers win
             }
         }

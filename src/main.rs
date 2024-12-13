@@ -302,10 +302,13 @@ fn render_board_as_html(board: &Vec<Vec<Cell>>) -> String {
             // If the cell is a corner, you can add specific styles or content for corners
             let corner_class = if cell.is_corner {" corner-cell" } else { "" };
 
+            // If the cell is a throne, you can add specific styles or content for corners
+            let throne_class = if cell.is_throne {" throne-cell" } else { "" };
+
             // Render the cell as an HTML table cell (<td>)
             html.push_str(&format!(
-                r#"<td id="cell-{}-{}" class="{}{}" onclick="handleCellClick({}, {})">{}</td>"#,
-                row_idx, col_idx, class, corner_class, row_idx, col_idx, content
+                r#"<td id="cell-{}-{}" class="{}{}{}" onclick="handleCellClick({}, {})">{}</td>"#,
+                row_idx, col_idx, class, corner_class, throne_class, row_idx, col_idx, content
             ));
             col_idx += 1;
         }
@@ -360,6 +363,7 @@ const CSS: &str = r#"
     .defender { background-color: #f0f0f0; }
     .king { background-color: #f0f0f0; }
     .corner-cell { background-color: #8cf367; }
+    .throne-cell { background-color: #D53E3E}
     .coordinates {
         font-size: 12px;
         font-weight: normal;
