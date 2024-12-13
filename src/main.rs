@@ -20,6 +20,11 @@ struct AppState {
 
 #[tokio::main]
 async fn main() {
+
+    // Static file serving for images
+    let static_files = warp::path("images").and(warp::fs::dir("./static/images"));
+
+
     let state = AppState {
         games: Arc::new(RwLock::new(Vec::new())),
     };
@@ -116,7 +121,6 @@ async fn main() {
                     </script>
                 </head>
                 <body>
-                    <h1 style="text-align: center;">Hnefatafl Game</h1>
                     <div id="board-container">
                         {}
                     </div>
@@ -246,7 +250,8 @@ async fn main() {
         });
 
     // Combine all routes
-    let routes = new_game
+    let routes = static_files
+        .or(new_game)
         .or(list_games)
         .or(query_game)
         .or(end_game)
@@ -279,9 +284,18 @@ fn render_board_as_html(board: &Vec<Vec<Cell>>) -> String {
         for cell in row {
             let (class, content) = match cell {
                 Cell::Empty => ("empty", ""),
-                Cell::Attacker => ("attacker", "A"),
-                Cell::Defender => ("defender", "D"),
-                Cell::King => ("king", "K"),
+                Cell::Attacker => (
+                    "attacker",
+                    r#"<img src="/images/attacker.png" alt="Attacker" class="piece" />"#,
+                ),
+                Cell::Defender => (
+                    "defender",
+                    r#"<img src="/images/defender.png" alt="Defender" class="piece" />"#,
+                ),
+                Cell::King => (
+                    "king",
+                    r#"<img src="/images/king.png" alt="King" class="piece" />"#,
+                ),
                 Cell::Corner => ("corner", ""),
             };
             html.push_str(&format!(
@@ -301,6 +315,7 @@ fn render_board_as_html(board: &Vec<Vec<Cell>>) -> String {
     }
 
     // Add a bottom row for column coordinates (no border)
+    html.push_str("<tr>");
     for col in 0..board[0].len() {
         html.push_str(&format!(
             r#"<td class="coordinates" style="border: none;">{}</td>"#,
@@ -312,6 +327,7 @@ fn render_board_as_html(board: &Vec<Vec<Cell>>) -> String {
     html.push_str("</table>");
     html
 }
+
 
 
 
@@ -330,10 +346,14 @@ const CSS: &str = r#"
         font-weight: bold;
         font-size: 16px;
     }
+    .piece {
+    width: 35px;
+    height: 35px;
+    }
     .empty { background-color: #f0f0f0; }
-    .attacker { background-color: #ffcccb; }
-    .defender { background-color: #add8e6; }
-    .king { background-color: #ffd700; }
+    .attacker { background-color: #f0f0f0; }
+    .defender { background-color: #f0f0f0; }
+    .king { background-color: #f0f0f0; }
     .corner { background-color: #8cf367; }
     .coordinates {
         font-size: 12px;

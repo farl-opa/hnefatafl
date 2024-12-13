@@ -66,7 +66,7 @@ impl GameState {
 
         // Place corners
         for &pos in &[
-            (0, 0), (0, 10), (10, 0), (10, 10)
+            (0, 0), (0, 10), (10, 0), (10, 10), (5, 5)
         ] {
             board[pos.0][pos.1] = Cell::Corner;
         }
