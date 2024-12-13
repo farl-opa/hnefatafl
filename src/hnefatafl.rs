@@ -294,7 +294,7 @@ impl GameState {
                 // Check if the neighbor is an opponent's piece and the adjacent piece is the same player's or a corner
                 if self.board[nx][ny].cell_type == opposite
                     && self.is_within_bounds((nnx, nny))
-                    && (self.board[nnx][nny].cell_type == cell.cell_type || self.board[nnx][nny].is_corner)
+                    && (self.board[nnx][nny].cell_type == cell.cell_type || self.board[nnx][nny].is_corner || self.board[nnx][nny].cell_type == CellType::King)
                 {
                     // Capture the opponent's piece by setting it to Empty
                     self.board[nx][ny] = Cell {
