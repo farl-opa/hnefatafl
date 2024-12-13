@@ -16,6 +16,7 @@ pub struct Cell {
     pub cell_type: CellType,
     pub is_corner: bool,
     pub is_throne: bool,
+    pub is_selected: bool,
 }
 
 
@@ -42,6 +43,9 @@ impl fmt::Display for Cell {
         if self.is_throne {
             display_str.push_str(" (Throne)");
         }
+        if self.is_selected {
+            display_str.push_str(" (Selected)");
+        }
 
         // Write the final string to the formatter
         write!(f, "{}", display_str)
@@ -56,6 +60,8 @@ pub struct GameState {
     pub winner: Option<Cell>,  // Stores the winner (None if ongoing)
     pub click_count: u32,      // Number of clicks
     pub from: (usize, usize),  // From position
+    pub board_message: String, // Message to display on the board
+    pub last_click: (usize, usize), // Last clicked cell
 }
 
 impl GameState {
@@ -66,7 +72,8 @@ impl GameState {
                 Cell {
                     cell_type: CellType::Empty,
                     is_corner: false,
-                    is_throne: false
+                    is_throne: false,
+                    is_selected: false,
                 }; 11
             ];
             11
@@ -87,6 +94,7 @@ impl GameState {
                 cell_type: CellType::Attacker,
                 is_corner: false,
                 is_throne: false,
+                is_selected: false,  
             };
         }
 
@@ -102,6 +110,7 @@ impl GameState {
                 cell_type: CellType::Defender,
                 is_corner: false,
                 is_throne: false,
+                is_selected: false,
             };
         }
 
@@ -113,6 +122,7 @@ impl GameState {
                 cell_type: CellType::Empty, // Corner is empty but still marked as a corner
                 is_corner: true,
                 is_throne: false,
+                is_selected: false,
             };
         }
 
@@ -121,6 +131,7 @@ impl GameState {
             cell_type: CellType::King,
             is_corner: false,
             is_throne: true,
+            is_selected: false,
         };
 
         // Return the GameState instance
@@ -129,12 +140,15 @@ impl GameState {
             current_turn: Cell {
                 cell_type: CellType::Attacker,
                 is_corner: false,
-                is_throne: false, // Current turn doesn't relate to corners directly
+                is_throne: false,
+                is_selected: false,
             },
             game_over: false,
             winner: None,
             click_count: 1,
             from: (0, 0),
+            board_message: "Current turn: Attacker".to_string(),
+            last_click: (0, 0),
         }
     }
     
@@ -143,8 +157,16 @@ impl GameState {
         if row >= self.board.len() || col >= self.board[0].len() {
             return Err("Invalid cell coordinates.".to_string());
         }
-    
-        let clicked_cell = &self.board[row][col];
+
+        if self.game_over {
+            return Err("Game is already over.".to_string());
+        }
+        
+        self.board[self.last_click.0][self.last_click.1].is_selected = false;   // Deselect last clicked cell
+        self.board[row][col].is_selected = true;                                // Select the clicked cell
+        let clicked_cell = &self.board[row][col];                        // Get the clicked cell
+        self.last_click = (row, col);                                           // Update the last clicked cell
+
     
         if self.click_count % 2 == 1 {
             // First click: Select a piece to move
@@ -193,11 +215,7 @@ impl GameState {
         Ok(())
     }
     
-    pub fn make_move(&mut self, from: (usize, usize), to: (usize, usize)) -> Result<(), String> {
-        if self.game_over {
-            return Err("Game is already over.".to_string());
-        }
-    
+    pub fn make_move(&mut self, from: (usize, usize), to: (usize, usize)) -> Result<(), String> {    
         // Validate the move
         if !self.is_valid_move(from, to) {
             return Err("Invalid move.".to_string());
@@ -205,30 +223,42 @@ impl GameState {
     
         // Make the move
         let mut moved_piece = self.board[from.0][from.1].clone();
-        if moved_piece.is_throne == true{
+        if moved_piece.is_throne {
             moved_piece.is_throne = false;
         }
 
         // Place the piece at the new position
-        if self.board[to.0][to.1].is_throne == false{
+        if !self.board[to.0][to.1].is_throne && !self.board[to.0][to.1].is_corner {
             self.board[to.0][to.1] = moved_piece; 
-        } else { 
+        } else if self.board[to.0][to.1].is_throne { 
             self.board[to.0][to.1] = moved_piece;
             self.board[to.0][to.1].is_throne = true;
+        } else if self.board[to.0][to.1].is_corner {
+            self.board[to.0][to.1] = moved_piece;
+            self.board[to.0][to.1].is_corner = true;            
         }
-    
+
         // Clear the original position
         if self.board[from.0][from.1].is_throne {
             self.board[from.0][from.1] = Cell {
                 cell_type: CellType::Empty,
                 is_corner: false,
-                is_throne: true, // The original cell was the throne
+                is_throne: true,
+                is_selected: false,
+            };
+        } else if self.board[from.0][from.1].is_corner {
+            self.board[from.0][from.1] = Cell {
+                cell_type: CellType::Empty,
+                is_corner: true,
+                is_throne: false,
+                is_selected: false,
             };
         } else {
             self.board[from.0][from.1] = Cell {
                 cell_type: CellType::Empty,
                 is_corner: false,
-                is_throne: false, // The original cell was not the throne
+                is_throne: false,
+                is_selected: false,
             };
         }
     
@@ -241,21 +271,25 @@ impl GameState {
             self.winner = Some(winner);
             let mut win_msg = winner.to_string();
             win_msg.push_str(" wins!");
-            return Err(win_msg);
+            self.board_message = win_msg;
         } else {
             // Switch turns
-            self.current_turn = if self.current_turn.cell_type == CellType::Attacker {
-                Cell {
+            if self.current_turn.cell_type == CellType::Attacker {
+                self.current_turn =  Cell {
                     cell_type: CellType::Defender,
-                    is_corner: false, // or true, depending on your game rules
+                    is_corner: false,
                     is_throne: false,
-                }
+                    is_selected: false,
+                };
+                self.board_message = "Current turn: Defender".to_string();
             } else {
-                Cell {
+                self.current_turn =  Cell {
                     cell_type: CellType::Attacker,
-                    is_corner: false, // or true, depending on your game rules
+                    is_corner: false,
                     is_throne: false,
-                }
+                    is_selected: false,
+                };
+                self.board_message = "Current turn: Attacker".to_string();
             };
         }
     
@@ -301,6 +335,7 @@ impl GameState {
                         cell_type: CellType::Empty,
                         is_corner: false, // Reset the corner status after capture
                         is_throne: false,
+                        is_selected: false,
                     };
                 }
             }
@@ -308,9 +343,6 @@ impl GameState {
     
         Ok(())
     }
-    
-    
-    
 
 
     /// Checks if the given position is within board bounds.
@@ -366,13 +398,14 @@ impl GameState {
         // Check if the king reached an edge (the edges are corners)
         if self.board[0][self.board.len() - 1].cell_type == CellType::King
             || self.board[self.board.len() - 1][0].cell_type == CellType::King
-            || self.board[self.board.len() - 1][0].cell_type == CellType::King
-            || self.board[0][self.board.len() - 1].cell_type == CellType::King
+            || self.board[self.board.len() - 1][self.board.len() - 1].cell_type == CellType::King
+            || self.board[0][0].cell_type == CellType::King
         {
             return Some(Cell {
-                cell_type: CellType::King,
+                cell_type: CellType::Defender,
                 is_corner: false, // This is up to your game logic to define
                 is_throne: false,
+                is_selected: false,
             });
         }
     
@@ -401,7 +434,8 @@ impl GameState {
                 return Some(Cell {
                     cell_type: CellType::Attacker,
                     is_corner: false,
-                    is_throne: false
+                    is_throne: false,
+                    is_selected: false,
                 }); // Attackers win
             }
         }

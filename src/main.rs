@@ -1,6 +1,7 @@
 #[warn(unused_variables)]
 
 use warp::Filter;
+// use warp::tls::TlsConfig;
 use std::sync::Arc;
 mod hnefatafl;
 use hnefatafl::{GameState, Cell, CellType};
@@ -85,7 +86,7 @@ async fn main() {
             let mut games = state.games.write().await;
             let game = GameState::new();
             let board_html = render_board_as_html(&game.board);
-            let current_turn = game.current_turn.cell_type.clone();
+            let board_message = game.board_message.clone();        
             games.push(Some(game)); // Store the new game
             let response = format!(
                 r#"<!DOCTYPE html>
@@ -95,7 +96,7 @@ async fn main() {
                     <meta charset="UTF-8">
                     <meta name="viewport" content="width=device-width, initial-scale=1.0">
                     <h1 style="text-align: center;">Hnefatafl Game</h1>
-                    <h2 style="text-align: center;">Current turn: {}</h2>
+                    <h2 style="text-align: center;">{}</h2>
                     {}
                     <script>
                         function handleCellClick(row, col) {{
@@ -111,14 +112,33 @@ async fn main() {
                                 if (data.success) {{
                                     // Update the board on success
                                     document.getElementById('board-container').innerHTML = data.board_html;
-                                    document.querySelector('h2').innerText = 'Current turn: ' + data.current_turn;
+                                    document.querySelector('h2').innerText = data.board_message;
                                 }} else {{
                                     alert(data.error || 'An error occurred');
                                 }}
                             }})
                             .catch(error => console.error('Error:', error));
                         }}
+
+                        function refreshBoard() {{
+                            fetch('/refresh-board', {{ method: 'GET' }}) // Replace '/refresh-board' with the correct endpoint
+                            .then(response => response.json())
+                            .then(data => {{
+                                if (data.success) {{
+                                    // Update the board and message periodically
+                                    document.getElementById('board-container').innerHTML = data.board_html;
+                                    document.querySelector('h2').innerText = data.board_message;
+                                }} else {{
+                                    console.error(data.error || 'Failed to fetch board update');
+                                }}
+                            }})
+                            .catch(error => console.error('Error fetching board update:', error));
+                        }}
+
+                        // Call refreshBoard every X milliseconds (e.g., 5000ms = 5 seconds)
+                        setInterval(refreshBoard, 1000);
                     </script>
+
                 </head>
                 <body>
                     <div id="board-container">
@@ -126,7 +146,7 @@ async fn main() {
                     </div>
                 </body>
                 </html>"#,
-                current_turn, CSS, board_html
+                board_message, CSS, board_html
             );
             Ok::<_, warp::Rejection>(warp::reply::html(response))
         });
@@ -143,11 +163,11 @@ async fn main() {
                 match game.process_click(click.row, click.col) {
                     Ok(_) => {
                         let board_html = render_board_as_html(&game.board);
-                        let current_turn = game.current_turn.cell_type.clone();
+                        let board_message = game.board_message.clone();
                         Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
                             "success": true,
                             "board_html": board_html,
-                            "current_turn": current_turn
+                            "board_message": board_message,
                         })))
                     }
                     Err(error_message) => {
@@ -180,6 +200,28 @@ async fn main() {
                 }
             } else {
                 Ok::<_, warp::Rejection>(warp::reply::json(&"Game not found or ended"))
+            }
+        });
+    
+    // Endpoint: Refresh the board
+    let refresh_board = warp::path("refresh-board")
+        .and(warp::get())
+        .and(state_filter.clone())
+        .and_then(|state: AppState| async move {
+            let games = state.games.read().await;
+            if let Some(Some(game)) = games.last() {
+                let board_html = render_board_as_html(&game.board);
+                let board_message = game.board_message.clone();
+                Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+                    "success": true,
+                    "board_html": board_html,
+                    "board_message": board_message,
+                })))
+            } else {
+                Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+                    "success": false,
+                    "error": "No active game"
+                })))
             }
         });
 
@@ -258,10 +300,11 @@ async fn main() {
         .or(make_move)
         .or(continue_game)
         .or(cell_click)
+        .or(refresh_board)
         .or(root);
 
     // Start the server
-    warp::serve(routes).run(([127, 0, 0, 1], 3030)).await
+    warp::serve(routes).run(([0, 0, 0, 0], 3030)).await;
 }
 
 #[derive(Deserialize)]
@@ -305,10 +348,13 @@ fn render_board_as_html(board: &Vec<Vec<Cell>>) -> String {
             // If the cell is a throne, you can add specific styles or content for corners
             let throne_class = if cell.is_throne {" throne-cell" } else { "" };
 
+            // If the cell is selected, you can add specific styles or content for corners
+            let selected_class = if cell.is_selected {" selected-cell" } else { "" };
+
             // Render the cell as an HTML table cell (<td>)
             html.push_str(&format!(
-                r#"<td id="cell-{}-{}" class="{}{}{}" onclick="handleCellClick({}, {})">{}</td>"#,
-                row_idx, col_idx, class, corner_class, throne_class, row_idx, col_idx, content
+                r#"<td id="cell-{}-{}" class="{}{}{}{}" onclick="handleCellClick({}, {})">{}</td>"#,
+                row_idx, col_idx, class, corner_class, throne_class, selected_class, row_idx, col_idx, content
             ));
             col_idx += 1;
         }
@@ -364,6 +410,7 @@ const CSS: &str = r#"
     .king { background-color: #f0f0f0; }
     .corner-cell { background-color: #8cf367; }
     .throne-cell { background-color: #D53E3E}
+    .selected-cell { background-color: #8c8c8c; }
     .coordinates {
         font-size: 12px;
         font-weight: normal;
