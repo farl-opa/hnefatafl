@@ -1,12 +1,15 @@
 #[warn(unused_variables)]
 
 use warp::Filter;
-// use warp::tls::TlsConfig;
+use warp::sse::Event;
+use warp::sse::reply;
+use tokio::sync::broadcast;
 use std::sync::Arc;
 mod hnefatafl;
 use hnefatafl::{GameState, Cell, CellType};
 use serde::Deserialize;
 use tokio::sync::RwLock;
+
 
 #[derive(Deserialize)]
 struct CellClick {
@@ -99,6 +102,15 @@ async fn main() {
                     <h2 style="text-align: center;">{}</h2>
                     {}
                     <script>
+                        // Establish an SSE connection
+                        const eventSource = new EventSource('/board-updates');
+
+                        eventSource.onmessage = function(event) {{
+                            const data = JSON.parse(event.data);
+                            document.getElementById('board-container').innerHTML = data.board_html;
+                            document.querySelector('h2').innerText = data.board_message;
+                        }};
+
                         function handleCellClick(row, col) {{
                             fetch('/cell-click', {{
                                 method: 'POST',
@@ -107,36 +119,8 @@ async fn main() {
                                 }},
                                 body: JSON.stringify({{ row: row, col: col }})
                             }})
-                            .then(response => response.json())
-                            .then(data => {{
-                                if (data.success) {{
-                                    // Update the board on success
-                                    document.getElementById('board-container').innerHTML = data.board_html;
-                                    document.querySelector('h2').innerText = data.board_message;
-                                }} else {{
-                                    alert(data.error || 'An error occurred');
-                                }}
-                            }})
                             .catch(error => console.error('Error:', error));
                         }}
-
-                        function refreshBoard() {{
-                            fetch('/refresh-board', {{ method: 'GET' }}) // Replace '/refresh-board' with the correct endpoint
-                            .then(response => response.json())
-                            .then(data => {{
-                                if (data.success) {{
-                                    // Update the board and message periodically
-                                    document.getElementById('board-container').innerHTML = data.board_html;
-                                    document.querySelector('h2').innerText = data.board_message;
-                                }} else {{
-                                    console.error(data.error || 'Failed to fetch board update');
-                                }}
-                            }})
-                            .catch(error => console.error('Error fetching board update:', error));
-                        }}
-
-                        // Call refreshBoard every X milliseconds (e.g., 5000ms = 5 seconds)
-                        setInterval(refreshBoard, 1000);
                     </script>
 
                 </head>
@@ -151,39 +135,74 @@ async fn main() {
             Ok::<_, warp::Rejection>(warp::reply::html(response))
         });
 
+    // Create a broadcast channel for board updates
+    let board_updates_tx = Arc::new(broadcast::channel::<String>(100).0);
+
+    let board_updates = warp::path("board-updates")
+        .and(warp::get())
+        .and({
+            let board_updates_tx = board_updates_tx.clone();
+            warp::any().map(move || board_updates_tx.subscribe())
+        })
+        .map(|mut rx: broadcast::Receiver<String>| {
+            reply(warp::sse::keep_alive().stream(async_stream::stream! {
+                while let Ok(message) = rx.recv().await {
+                    yield Ok::<_, warp::Error>(Event::default()
+                        .data(message));
+                }
+            }))
+        });
+
+
     // Endpoint to handle cell clicks
     let cell_click = warp::path("cell-click")
         .and(warp::post())
         .and(warp::body::json())
         .and(state_filter.clone())
-        .and_then(|click: CellClick, state: AppState| async move {
-            let mut games = state.games.write().await;
-            if let Some(game) = games.last_mut().and_then(Option::as_mut) {
-                // Call process_click and handle the result
-                match game.process_click(click.row, click.col) {
-                    Ok(_) => {
-                        let board_html = render_board_as_html(&game.board);
-                        let board_message = game.board_message.clone();
-                        Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
-                            "success": true,
-                            "board_html": board_html,
-                            "board_message": board_message,
-                        })))
-                    }
-                    Err(error_message) => {
-                        Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+        .and(warp::any().map({
+            let board_updates_tx = board_updates_tx.clone();
+            move || board_updates_tx.clone()
+        }))
+        .and_then(
+            |click: CellClick, state: AppState, board_updates_tx: Arc<broadcast::Sender<String>>| async move {
+                let mut games = state.games.write().await;
+                if let Some(game) = games.last_mut().and_then(Option::as_mut) {
+                    match game.process_click(click.row, click.col) {
+                        Ok(_) => {
+                            let board_html = render_board_as_html(&game.board);
+                            let board_message = game.board_message.clone();
+
+                            // Broadcast the new board state
+                            let update = serde_json::to_string(&serde_json::json!({
+                                "board_html": board_html,
+                                "board_message": board_message,
+                            }))
+                            .unwrap();
+                            let _ = board_updates_tx.send(update); // Ignore errors if no subscribers
+
+                            Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+                                "success": true,
+                                "board_html": board_html,
+                                "board_message": board_message,
+                            })))
+                        }
+                        Err(error_message) => Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
                             "success": false,
-                            "error": error_message
-                        })))
+                            "error": error_message,
+                        }))),
                     }
+                } else {
+                    Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+                        "success": false,
+                        "error": "No active game",
+                    })))
                 }
-            } else {
-                Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
-                    "success": false,
-                    "error": "No active game"
-                })))
-            }
-        });
+            },
+        );
+
+
+
+
 
 
     // Endpoint: Make a move
@@ -301,6 +320,7 @@ async fn main() {
         .or(continue_game)
         .or(cell_click)
         .or(refresh_board)
+        .or(board_updates)
         .or(root);
 
     // Start the server
