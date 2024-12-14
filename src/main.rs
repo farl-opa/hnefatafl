@@ -186,24 +186,34 @@ async fn main() {
                                 "board_message": board_message,
                             })))
                         }
-                        Err(error_message) => Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
-                            "success": false,
-                            "error": error_message,
-                        }))),
+                        Err(error_message) => {
+                            let board_html = render_board_as_html(&game.board);
+                            let board_message = game.board_message.clone();
+
+                            // Broadcast the new board state even if there's an error
+                            let update = serde_json::to_string(&serde_json::json!({
+                                "board_html": board_html,
+                                "board_message": board_message,
+                            }))
+                            .unwrap();
+                            let _ = board_updates_tx.send(update); // Ignore errors if no subscribers
+
+                            Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+                                "success": false,
+                                "error": error_message,
+                                "board_html": board_html,
+                                "board_message": board_message,
+                            })))
+                        }
                     }
                 } else {
                     Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
                         "success": false,
                         "error": "No active game",
-                    })))
+                        })))
                 }
             },
         );
-
-
-
-
-
 
     // Endpoint: Make a move
     let make_move = warp::path("move")
@@ -251,11 +261,12 @@ async fn main() {
     .and(state_filter.clone())
     .and_then(|state: AppState| async move {
         let games = state.games.write().await;
-        if let Some(Some(_game)) = games.last() {
-            Ok::<_, warp::Rejection>(warp::reply::html("Continuing the last game..."))
+        let response = if let Some(Some(_game)) = games.last() {
+            warp::reply::html("Continuing the last game...")
         } else {
-            Ok::<_, warp::Rejection>(warp::reply::html("No game to continue!"))
-        }
+            warp::reply::html("No game to continue!")
+        };
+        Ok::<_, warp::Rejection>(response)
     });
 
     // Endpoint: List all games
@@ -371,10 +382,12 @@ fn render_board_as_html(board: &Vec<Vec<Cell>>) -> String {
             // If the cell is selected, you can add specific styles or content for corners
             let selected_class = if cell.is_selected {" selected-cell" } else { "" };
 
+            let possible_class = if cell.is_possible_move {" possible-cell" } else { "" };
+
             // Render the cell as an HTML table cell (<td>)
             html.push_str(&format!(
-                r#"<td id="cell-{}-{}" class="{}{}{}{}" onclick="handleCellClick({}, {})">{}</td>"#,
-                row_idx, col_idx, class, corner_class, throne_class, selected_class, row_idx, col_idx, content
+                r#"<td id="cell-{}-{}" class="{}{}{}{}{}" onclick="handleCellClick({}, {})">{}</td>"#,
+                row_idx, col_idx, class, corner_class, throne_class, selected_class, possible_class, row_idx, col_idx, content
             ));
             col_idx += 1;
         }
@@ -431,6 +444,21 @@ const CSS: &str = r#"
     .corner-cell { background-color: #8cf367; }
     .throne-cell { background-color: #D53E3E}
     .selected-cell { background-color: #8c8c8c; }
+    .possible-cell { 
+        background-color: #f0f0f0; 
+        position: relative;
+    }
+    .possible-cell::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 10px;
+        height: 10px;
+        background-color: green;
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+    }
     .coordinates {
         font-size: 12px;
         font-weight: normal;

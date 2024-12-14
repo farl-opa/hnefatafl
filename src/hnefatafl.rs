@@ -17,6 +17,7 @@ pub struct Cell {
     pub is_corner: bool,
     pub is_throne: bool,
     pub is_selected: bool,
+    pub is_possible_move: bool,
 }
 
 
@@ -74,6 +75,7 @@ impl GameState {
                     is_corner: false,
                     is_throne: false,
                     is_selected: false,
+                    is_possible_move: false,
                 }; 11
             ];
             11
@@ -94,7 +96,8 @@ impl GameState {
                 cell_type: CellType::Attacker,
                 is_corner: false,
                 is_throne: false,
-                is_selected: false,  
+                is_selected: false,
+                is_possible_move: false,  
             };
         }
 
@@ -111,6 +114,7 @@ impl GameState {
                 is_corner: false,
                 is_throne: false,
                 is_selected: false,
+                is_possible_move: false,
             };
         }
 
@@ -123,6 +127,7 @@ impl GameState {
                 is_corner: true,
                 is_throne: false,
                 is_selected: false,
+                is_possible_move: false,
             };
         }
 
@@ -132,6 +137,7 @@ impl GameState {
             is_corner: false,
             is_throne: true,
             is_selected: false,
+            is_possible_move: false,
         };
 
         // Return the GameState instance
@@ -142,6 +148,7 @@ impl GameState {
                 is_corner: false,
                 is_throne: false,
                 is_selected: false,
+                is_possible_move: false,
             },
             game_over: false,
             winner: None,
@@ -171,33 +178,67 @@ impl GameState {
         if self.click_count % 2 == 1 {
             // First click: Select a piece to move
             if clicked_cell.cell_type == CellType::Empty {
+                self.board[self.last_click.0][self.last_click.1].is_selected = false;
+                for cell in self.board.iter_mut().flat_map(|r| r.iter_mut()) {
+                        cell.is_possible_move = false;
+                    }
                 return Err("Select a piece to move.".to_string());
             }
             else if clicked_cell.cell_type == CellType::Defender && self.current_turn.cell_type == CellType::Attacker {
+                self.board[self.last_click.0][self.last_click.1].is_selected = false;
+                for cell in self.board.iter_mut().flat_map(|r| r.iter_mut()) {
+                        cell.is_possible_move = false;
+                    }
                 return Err("Cannot move the defender's piece.".to_string());
             }
             else if clicked_cell.cell_type == CellType::King && self.current_turn.cell_type == CellType::Attacker {
+                self.board[self.last_click.0][self.last_click.1].is_selected = false;
+                for cell in self.board.iter_mut().flat_map(|r| r.iter_mut()) {
+                        cell.is_possible_move = false;
+                    }
                 return Err("Cannot move the defender's piece.".to_string());
             }
             else if clicked_cell.cell_type == CellType::Attacker && self.current_turn.cell_type == CellType::Defender {
+                self.board[self.last_click.0][self.last_click.1].is_selected = false;
+                for cell in self.board.iter_mut().flat_map(|r| r.iter_mut()) {
+                        cell.is_possible_move = false;
+                    }
                 return Err("Cannot move the attacker's piece.".to_string());
             }
             else {
                 self.click_count += 1;
                 self.from = (row, col);
+
+                let possible_moves = self.calculate_valid_moves(self.from);
+
+                for cell in possible_moves {
+                    self.board[cell.0][cell.1].is_possible_move = true;
+                }
             }
         } else {
             // Second click: Select an empty cell to move to
             if clicked_cell.cell_type != CellType::Empty {
                 self.click_count -= 1;
+                self.board[self.last_click.0][self.last_click.1].is_selected = false;
+                for cell in self.board.iter_mut().flat_map(|r| r.iter_mut()) {
+                        cell.is_possible_move = false;
+                    }
                 return Err("Select an empty cell to move to.".to_string());
             }
             else if clicked_cell.is_corner && self.board[self.from.0][self.from.1].cell_type != CellType::King {
                 self.click_count -= 1;
+                self.board[self.last_click.0][self.last_click.1].is_selected = false;
+                for cell in self.board.iter_mut().flat_map(|r| r.iter_mut()) {
+                        cell.is_possible_move = false;
+                    }
                 return Err("Cannot move to the corner.".to_string());
             }
             else if clicked_cell.is_throne && self.board[self.from.0][self.from.1].cell_type != CellType::King {
                 self.click_count -= 1;
+                self.board[self.last_click.0][self.last_click.1].is_selected = false;
+                for cell in self.board.iter_mut().flat_map(|r| r.iter_mut()) {
+                        cell.is_possible_move = false;
+                    }
                 return Err("Cannot move to the throne.".to_string());
             }
             else {
@@ -205,6 +246,10 @@ impl GameState {
                 match self.make_move(self.from, (row, col)) {
                     Ok(_) => {
                         self.click_count += 1;
+
+                        for cell in self.board.iter_mut().flat_map(|r| r.iter_mut()) {
+                            cell.is_possible_move = false;
+                        }
                     }
                     Err(error_message) => {
                         return Err(error_message.to_string());
@@ -213,6 +258,52 @@ impl GameState {
             }
         }
         Ok(())
+    }
+
+    pub fn calculate_valid_moves(&self, start: (usize, usize)) -> Vec<(usize, usize)> {
+        let mut valid_moves = Vec::new();
+        let (start_row, start_col) = start;
+
+        if !self.is_within_bounds(start) {
+            return valid_moves;
+        }
+
+        let cell = self.board[start_row][start_col];
+        if cell.cell_type == CellType::Empty {
+            return valid_moves; // Cannot move from an empty cell
+        }
+
+        // Directions: up, down, left, right
+        let directions = [
+            (-1, 0), // Up
+            (1, 0),  // Down
+            (0, -1), // Left
+            (0, 1),  // Right
+        ];
+
+        for &(d_row, d_col) in &directions {
+            let mut row = start_row as isize;
+            let mut col = start_col as isize;
+
+            loop {
+                row += d_row;
+                col += d_col;
+
+                if row < 0 || col < 0 || row >= self.board.len() as isize || col >= self.board[0].len() as isize {
+                    break; // Out of bounds
+                }
+
+                let next_cell = &self.board[row as usize][col as usize];
+
+                if next_cell.cell_type != CellType::Empty || next_cell.is_corner {
+                    break; // Stop if cell is not empty or is a corner
+                }
+
+                valid_moves.push((row as usize, col as usize));
+            }
+        }
+
+        valid_moves
     }
     
     pub fn make_move(&mut self, from: (usize, usize), to: (usize, usize)) -> Result<(), String> {    
@@ -245,6 +336,7 @@ impl GameState {
                 is_corner: false,
                 is_throne: true,
                 is_selected: false,
+                is_possible_move: false,
             };
         } else if self.board[from.0][from.1].is_corner {
             self.board[from.0][from.1] = Cell {
@@ -252,6 +344,7 @@ impl GameState {
                 is_corner: true,
                 is_throne: false,
                 is_selected: false,
+                is_possible_move: false,
             };
         } else {
             self.board[from.0][from.1] = Cell {
@@ -259,6 +352,7 @@ impl GameState {
                 is_corner: false,
                 is_throne: false,
                 is_selected: false,
+                is_possible_move: false,
             };
         }
     
@@ -280,6 +374,7 @@ impl GameState {
                     is_corner: false,
                     is_throne: false,
                     is_selected: false,
+                    is_possible_move: false,
                 };
                 self.board_message = "Current turn: Defender".to_string();
             } else {
@@ -288,6 +383,7 @@ impl GameState {
                     is_corner: false,
                     is_throne: false,
                     is_selected: false,
+                    is_possible_move: false,
                 };
                 self.board_message = "Current turn: Attacker".to_string();
             };
@@ -340,6 +436,7 @@ impl GameState {
                             is_corner: false, // Reset the corner status after capture
                             is_throne: false,
                             is_selected: false,
+                            is_possible_move: false,
                         };
                     }
                 } else {
@@ -355,6 +452,7 @@ impl GameState {
                             is_corner: false, // Reset the corner status after capture
                             is_throne: false,
                             is_selected: false,
+                            is_possible_move: false,
                         };
                     }
                 }
@@ -428,6 +526,7 @@ impl GameState {
                 is_corner: false, // This is up to your game logic to define
                 is_throne: false,
                 is_selected: false,
+                is_possible_move: false,
             });
         }
     
@@ -458,6 +557,7 @@ impl GameState {
                     is_corner: false,
                     is_throne: false,
                     is_selected: false,
+                    is_possible_move: false,
                 }); // Attackers win
             }
         }
