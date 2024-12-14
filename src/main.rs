@@ -41,44 +41,142 @@ async fn main() {
     .and(state_filter.clone())
     .and_then(|state: AppState| async move {
         let games = state.games.write().await;
-        if let Some(Some(_game)) = games.get(0) {
-            let response = r#"<!DOCTYPE html>
-                <html lang="en">
-                <head>
-                    <meta charset="UTF-8">
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <title>Hnefatafl</title>
-                </head>
-                <body>
-                    <h1 style="text-align: center;">Welcome to the Hnefatafl Server!</h1>
-                    <form action="/new" method="post" style="text-align: center; margin-top: 20px;">
-                        <button type="submit">Start New Game</button>
-                    </form>
-                    <form action="/continue" method="post" style="text-align: center; margin-top: 20px;">
-                        <button type="submit">Continue Last Game</button>
-                    </form>
-                </body>
-                </html>"#;
-            Ok::<_, warp::Rejection>(warp::reply::html(response.to_string()))
-            
+        let response = if let Some(Some(_game)) = games.get(0) {
+            r#"<!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Hnefatafl</title>
+            </head>
+            <body>
+                <h1 style="text-align: center;">Welcome to the Hnefatafl Server!</h1>
+                <form action="/new" method="post" style="text-align: center; margin-top: 20px;">
+                    <button type="submit">Start New Game</button>
+                </form>
+                <form action="/continue" method="post" style="text-align: center; margin-top: 20px;">
+                    <button type="submit">Continue Last Game</button>
+                </form>
+                <form action="/rules" method="get" style="text-align: center; margin-top: 20px;">
+                    <button type="submit">Game Rules</button>
+                </form>
+            </body>
+            </html>"#
         } else {
-            let response = r#"<!DOCTYPE html>
-                <html lang="en">
-                <head>
-                    <meta charset="UTF-8">
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <title>Hnefatafl</title>
-                </head>
-                <body>
-                    <h1 style="text-align: center;">Welcome to the Hnefatafl Server!</h1>
-                    <form action="/new" method="post" style="text-align: center; margin-top: 20px;">
-                        <button type="submit">Start New Game</button>
-                    </form>
-                </body>
-                </html>"#;
-            Ok::<_, warp::Rejection>(warp::reply::html(response.to_string()))
-        }
+            r#"<!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Hnefatafl</title>
+            </head>
+            <body>
+                <h1 style="text-align: center;">Welcome to the Hnefatafl Server!</h1>
+                <form action="/new" method="post" style="text-align: center; margin-top: 20px;">
+                    <button type="submit">Start New Game</button>
+                </form>
+                <form action="/rules" method="get" style="text-align: center; margin-top: 20px;">
+                    <button type="submit">Game Rules</button>
+                </form>
+            </body>
+            </html>"#
+        };
+        Ok::<_, warp::Rejection>(warp::reply::html(response.to_string()))
     });
+
+    // Endpoint: Display the rules
+    let rules = warp::path("rules")
+    .and(warp::get())
+    .and_then(|| async {
+        let response = r#"<!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Game Rules - Hnefatafl</title>
+            <style>
+                body {
+                    line-height: 1.6;
+                    margin: 20px;
+                }
+                h1 {
+                    text-align: center;
+                    color: #555;
+                }
+                h2 {
+                    text-align: center;
+                }
+                ul {
+                    list-style-position: inside;
+                    padding: 0;
+                }
+                ul li {
+                    display: block;
+                    text-align: center;
+                }
+                p, ul {
+                    text-align: center;
+                    margin-bottom: 1.2em;
+                    max-width: 600px;
+                    margin-left: auto;
+                    margin-right: auto;
+                }
+            </style>
+        </head>
+        <body>
+            <h1>Hnefatafl Game Rules</h1>
+            <div>
+                <p>Hnefatafl is an ancient Norse strategy board game. Two sides compete in an asymmetrical battle. The Defenders protect their King, while the Attackers attempt to capture him.</p>
+                
+                <h2>Objective</h2>
+                <ul>
+                    <li><strong>Defenders:</strong> Help the King escape to one of the four corners of the board.</li>
+                    <li><strong>Attackers:</strong> Capture the King by surrounding him on all four sides.</li>
+                </ul>
+                
+                <h2>Board Setup</h2>
+                <ul>
+                    <li>The King starts on the central square (the Throne).</li>
+                    <li>Defenders are symmetrically placed around the King.</li>
+                    <li>Attackers are placed on the board edges, forming a cross-like pattern.</li>
+                </ul>
+                
+                <h2>Movement</h2>
+                <ul>
+                    <li>All pieces move horizontally or vertically, like a rook in chess.</li>
+                    <li>Pieces cannot move through or land on other pieces.</li>
+                    <li>Only the King may occupy the Throne or escape to a corner square.</li>
+                </ul>
+                
+                <h2>Capturing</h2>
+                <ul>
+                    <li>A piece is captured by being sandwiched between two opposing pieces.</li>
+                    <li>The King is captured by surrounding him on all four sides.</li>
+                    <li>If adjacent to the Throne or an edge, the King is captured when surrounded on the remaining three sides.</li>
+                </ul>
+                
+                <h2>Reinforced Corners Rule</h2>
+                <p>The Throne and corners can act as allies for capturing enemy pieces. For example, if an Attacker is sandwiched between a Defender and the Throne, the Attacker is captured.</p>
+                
+                <h2>Game End</h2>
+                <ul>
+                    <li>The Defenders win if the King escapes to a corner.</li>
+                    <li>The Attackers win if the King is captured.</li>
+                </ul>
+                
+                <div class="back-link">
+                    <form action="/" method="get" style="text-align: center; margin-top: 20px;">
+                        <button type="submit" class="back-button">Back to Home</button>
+                    </form>
+                </div>
+
+            </div>
+        </body>
+        </html>"#;
+
+        Ok::<_, warp::Rejection>(warp::reply::html(response.to_string()))
+    });
+
 
     // Endpoint: Create a new game
     let new_game = warp::path("new")
@@ -323,6 +421,7 @@ async fn main() {
 
     // Combine all routes
     let routes = static_files
+        .or(rules)
         .or(new_game)
         .or(list_games)
         .or(query_game)

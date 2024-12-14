@@ -482,7 +482,7 @@ impl GameState {
             } else {
                 (to.1..=col - 1).rev().collect()
             };
-            range.iter().all(|&c| self.board[row][c].cell_type == CellType::Empty)
+            range.iter().all(|&c| self.board[row][c].cell_type == CellType::Empty )
         } else if col == to.1 {
             // Vertical move
             let range: Vec<_> = if row < to.0 {
