@@ -295,8 +295,14 @@ impl GameState {
 
                 let next_cell = &self.board[row as usize][col as usize];
 
-                if next_cell.cell_type != CellType::Empty || next_cell.is_corner || next_cell.is_throne{
-                    break; // Stop if cell is not empty or is a corner
+                if cell.cell_type != CellType::King{
+                    if next_cell.cell_type != CellType::Empty || next_cell.is_corner || next_cell.is_throne{
+                        break; // Stop if cell is not empty or is a corner, and piece is not a king
+                    }
+                } else {
+                    if next_cell.cell_type != CellType::Empty{
+                        break; // Stop if cell is not empty, and piece is a king
+                    }
                 }
 
                 valid_moves.push((row as usize, col as usize));

@@ -40,8 +40,8 @@ async fn main() {
     .and(warp::get())
     .and(state_filter.clone())
     .and_then(|state: AppState| async move {
-        let games = state.games.write().await;
-        let response = if let Some(Some(_game)) = games.get(0) {
+        let games = state.games.read().await; // Read lock to prevent accidental writes
+        let response = if games.get(0).is_some() {
             r#"<!DOCTYPE html>
             <html lang="en">
             <head>
@@ -83,6 +83,7 @@ async fn main() {
         };
         Ok::<_, warp::Rejection>(warp::reply::html(response.to_string()))
     });
+
 
     // Endpoint: Display the rules
     let rules = warp::path("rules")
@@ -544,7 +545,6 @@ const CSS: &str = r#"
     .throne-cell { background-color: #D53E3E}
     .selected-cell { background-color: #8c8c8c; }
     .possible-cell { 
-        background-color: #f0f0f0; 
         position: relative;
     }
     .possible-cell::before {
