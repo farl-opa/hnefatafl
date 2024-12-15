@@ -3,12 +3,17 @@
 use warp::Filter;
 use warp::sse::Event;
 use warp::sse::reply;
+use warp::reply::html;
+use warp::reject::Reject;
 use tokio::sync::broadcast;
 use std::sync::Arc;
+use std::fmt;
 mod hnefatafl;
 use hnefatafl::{GameState, Cell, CellType};
 use serde::Deserialize;
 use tokio::sync::RwLock;
+use std::collections::HashMap;
+use uuid::Uuid;
 
 
 #[derive(Deserialize)]
@@ -20,70 +25,159 @@ struct CellClick {
 #[derive(Clone)]
 struct AppState {
     pub games: Arc<RwLock<Vec<Option<GameState>>>>, // Use Option to mark ended games
+    players: Arc<RwLock<HashMap<String, String>>>, // Maps session IDs to usernames
 }
+
+#[derive(Debug)]
+struct MissingUsername;
+
+impl fmt::Display for MissingUsername {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Missing username")
+    }
+}
+
+impl Reject for MissingUsername {}
 
 #[tokio::main]
 async fn main() {
-
     // Static file serving for images
     let static_files = warp::path("images").and(warp::fs::dir("./static/images"));
 
-
+    // Initialize application state
     let state = AppState {
         games: Arc::new(RwLock::new(Vec::new())),
+        players: Arc::new(RwLock::new(HashMap::new())), // Initialize as an empty HashMap
     };
 
     let state_filter = warp::any().map(move || state.clone());
 
-    // Root endpoint to display the Starting Menu
-    let root = warp::path::end()
-    .and(warp::get())
-    .and(state_filter.clone())
-    .and_then(|state: AppState| async move {
-        let games = state.games.read().await; // Read lock to prevent accidental writes
-        let response = if games.get(0).is_some() {
-            r#"<!DOCTYPE html>
+    // Root route to show the username form
+    let username_form = warp::path::end()
+        .and(warp::get())
+        .map(|| {
+            // Define HTML content as a string
+            let html_content = r#"
+            <!DOCTYPE html>
             <html lang="en">
             <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Hnefatafl</title>
+                <title>Enter Username</title>
             </head>
             <body>
-                <h1 style="text-align: center;">Welcome to the Hnefatafl Server!</h1>
-                <form action="/new" method="post" style="text-align: center; margin-top: 20px;">
-                    <button type="submit">Start New Game</button>
-                </form>
-                <form action="/continue" method="post" style="text-align: center; margin-top: 20px;">
-                    <button type="submit">Continue Last Game</button>
-                </form>
-                <form action="/rules" method="get" style="text-align: center; margin-top: 20px;">
-                    <button type="submit">Game Rules</button>
+                <h1 style="text-align: center;">Enter Your Username</h1>
+                <form action="/main" method="post" style="text-align: center; margin-top: 20px;">
+                    <input type="text" name="username" placeholder="Enter username" required>
+                    <button type="submit">Submit</button>
                 </form>
             </body>
-            </html>"#
-        } else {
-            r#"<!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Hnefatafl</title>
-            </head>
-            <body>
-                <h1 style="text-align: center;">Welcome to the Hnefatafl Server!</h1>
-                <form action="/new" method="post" style="text-align: center; margin-top: 20px;">
-                    <button type="submit">Start New Game</button>
-                </form>
-                <form action="/rules" method="get" style="text-align: center; margin-top: 20px;">
-                    <button type="submit">Game Rules</button>
-                </form>
-            </body>
-            </html>"#
-        };
-        Ok::<_, warp::Rejection>(warp::reply::html(response.to_string()))
-    });
+            </html>
+            "#;
 
+            // Return the HTML as a response
+            html(html_content)
+        });
+
+    // Handle POST request for username submission and show main page
+    let main_page_post = warp::path("main")
+        .and(warp::post()) // POST method
+        .and(warp::body::form()) // To receive form data
+        .and(state_filter.clone())
+        .and_then(|form: HashMap<String, String>, state: AppState| async move {
+            // Extract the username from the form
+            if let Some(username) = form.get("username") {
+                let session_id = Uuid::new_v4().to_string(); // Generate a unique session ID
+                state.players.write().await.insert(session_id.clone(), username.clone());
+
+                // Now show the main page with the list of players
+                let players = state.players.read().await; // Read the list of connected players
+
+                // Build the players list in HTML
+                let players_html: String = players
+                    .iter()
+                    .map(|(session_id, username)| {
+                        format!("<p style=\"text-align: center;\">Player {}: {}</p>", session_id, username)
+                    })
+                    .collect();
+
+                // HTML response for the main page
+                let response = format!(
+                    r#"
+                    <!DOCTYPE html>
+                    <html lang="en">
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <title>Hnefatafl - Main</title>
+                    </head>
+                    <body>
+                        <h1 style="text-align: center;">Welcome to the Hnefatafl Server!</h1>
+                        <h2 style="text-align: center;">Players Online</h2>
+                        {}
+                        <form action="/new" method="post" style="text-align: center; margin-top: 20px;">
+                            <button type="submit">Start New Game</button>
+                        </form>
+                        <form action="/rules" method="get" style="text-align: center; margin-top: 20px;">
+                            <button type="submit">Game Rules</button>
+                        </form>
+                    </body>
+                    </html>
+                    "#,
+                    players_html
+                );
+
+                Ok::<_, warp::Rejection>(html(response))
+            } else {
+                // If no username, we can reject the request or handle it as an error
+                Err(warp::reject::custom(MissingUsername))
+            }
+        });
+
+    // Handle GET request to show main page with the list of players
+    let main_page_get = warp::path("main")
+        .and(warp::get()) // GET method
+        .and(state_filter.clone())
+        .and_then(|state: AppState| async move {
+            // Read the list of connected players
+            let players = state.players.read().await;
+
+            // Build the players list in HTML
+            let players_html: String = players
+                .iter()
+                .map(|(session_id, username)| {
+                    format!("<p style=\"text-align: center;\">Player {}: {}</p>", session_id, username)
+                })
+                .collect();
+
+            // HTML response for the main page
+            let response = format!(
+                r#"
+                <!DOCTYPE html>
+                <html lang="en">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Hnefatafl - Main</title>
+                </head>
+                <body>
+                    <h1 style="text-align: center;">Welcome to the Hnefatafl Server!</h1>
+                    <h2 style="text-align: center;">Players Online</h2>
+                    {}
+                    <form action="/new" method="post" style="text-align: center; margin-top: 20px;">
+                        <button type="submit">Start New Game</button>
+                    </form>
+                    <form action="/rules" method="get" style="text-align: center; margin-top: 20px;">
+                        <button type="submit">Game Rules</button>
+                    </form>
+                </body>
+                </html>
+                "#,
+                players_html
+            );
+
+            Ok::<_, warp::Rejection>(html(response))
+        });
 
     // Endpoint: Display the rules
     let rules = warp::path("rules")
@@ -166,7 +260,7 @@ async fn main() {
                 </ul>
                 
                 <div class="back-link">
-                    <form action="/" method="get" style="text-align: center; margin-top: 20px;">
+                    <form action="/main" method="get" style="text-align: center; margin-top: 20px;">
                         <button type="submit" class="back-button">Back to Home</button>
                     </form>
                 </div>
@@ -422,6 +516,9 @@ async fn main() {
 
     // Combine all routes
     let routes = static_files
+        .or(username_form)
+        .or(main_page_get)
+        .or(main_page_post)
         .or(rules)
         .or(new_game)
         .or(list_games)
@@ -431,8 +528,7 @@ async fn main() {
         .or(continue_game)
         .or(cell_click)
         .or(refresh_board)
-        .or(board_updates)
-        .or(root);
+        .or(board_updates);
 
     // Start the server
     warp::serve(routes).run(([0, 0, 0, 0], 3030)).await;
