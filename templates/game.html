@@ -1,0 +1,38 @@
+r#"<!DOCTYPE html>
+<html lang="en">
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <h1 style="text-align: center;">Hnefatafl Game</h1>
+    <h2 style="text-align: center;">{board_message}</h2>
+    {CSS}
+    <script>
+        // Establish an SSE connection
+        const eventSource = new EventSource('/board-updates');
+
+        eventSource.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            document.getElementById('board-container').innerHTML = data.board_html;
+            document.querySelector('h2').innerText = data.board_message;
+        };
+
+        function handleCellClick(row, col) {
+            fetch('/cell-click', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ row: row, col: col })
+            })
+            .catch(error => console.error('Error:', error));
+        }
+    </script>
+
+</head>
+<body>
+    <div id="board-container">
+        {board_html}
+    </div>
+</body>
+</html>"#,

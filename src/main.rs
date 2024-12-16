@@ -258,47 +258,17 @@ async fn main() {
             let board_html = render_board_as_html(&game.board);
             let board_message = game.board_message.clone();        
             games.push(Some(game)); // Store the new game
-            let response = format!(
-                r#"<!DOCTYPE html>
-                <html lang="en">
-                <html>
-                <head>
-                    <meta charset="UTF-8">
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <h1 style="text-align: center;">Hnefatafl Game</h1>
-                    <h2 style="text-align: center;">{}</h2>
-                    {}
-                    <script>
-                        // Establish an SSE connection
-                        const eventSource = new EventSource('/board-updates');
 
-                        eventSource.onmessage = function(event) {{
-                            const data = JSON.parse(event.data);
-                            document.getElementById('board-container').innerHTML = data.board_html;
-                            document.querySelector('h2').innerText = data.board_message;
-                        }};
+            // Read the HTML template from file
+            let template_path = "templates/game.html";
+            let template = read_html_template(template_path).unwrap();
 
-                        function handleCellClick(row, col) {{
-                            fetch('/cell-click', {{
-                                method: 'POST',
-                                headers: {{
-                                    'Content-Type': 'application/json'
-                                }},
-                                body: JSON.stringify({{ row: row, col: col }})
-                            }})
-                            .catch(error => console.error('Error:', error));
-                        }}
-                    </script>
-
-                </head>
-                <body>
-                    <div id="board-container">
-                        {}
-                    </div>
-                </body>
-                </html>"#,
-                board_message, CSS, board_html
-            );
+            // Replace placeholders in the template with dynamic content
+            let response = template
+                .replace("{board_message}", &format!("Welcome back, {}!", &board_message))
+                .replace("{CSS}", &CSS)
+                .replace("{board_html}", &board_html);
+            
             Ok::<_, warp::Rejection>(warp::reply::html(response))
         });
 
