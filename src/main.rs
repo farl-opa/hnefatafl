@@ -111,7 +111,7 @@ async fn main() {
                         .collect();
 
                     // Read the HTML template from file
-                    let template_path = "templates/index.html";
+                    let template_path = "templates/main_page.html";
                     let template = read_html_template(template_path).unwrap();
 
                     // Replace placeholders in the template with dynamic content

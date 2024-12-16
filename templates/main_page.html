@@ -8,22 +8,45 @@
         body {
             font-family: Arial, sans-serif;
             display: flex;
-            flex-direction: column;
-            align-items: center;
             justify-content: center;
+            align-items: center;
             height: 100vh;
             margin: 0;
             text-align: center;
         }
         .container {
-            width: 100%;
-            max-width: 600px;
+            display: flex;
+            justify-content: space-between;
+            width: 80%;
+            max-width: 1000px;
+        }
+        .column {
+            flex: 1; /* Each column gets an equal share of space */
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .left {
+            background-color: #f8f9fa; 
+        }
+        .center {
+            background-color: #ffffff;
+            text-align: center; 
+        }
+        .right {
+            background-color: #f1f3f5; 
+            text-align: right;
         }
         h1, h2 {
             margin-bottom: 20px;
         }
         p {
             font-size: 18px;
+            margin: 5px 0;
+        }
+        .player-list {
+            margin-top: 20px;
+        }
+        .player-list p {
             margin: 5px 0;
         }
         form {
@@ -38,19 +61,26 @@
 </head>
 <body>
     <div class="container">
-        <h1>{welcome_message}</h1>
-        <h2>Players Online</h2>
-        <div>{players_html}</div>
-        <form action="/new" method="post">
-            <button type="submit">Start New Game</button>
-        </form>
-        <form action="/rules" method="get">
-            <button type="submit">Game Rules</button>
-        </form>
-        <form action="/signout" method="post">
-            <input type="hidden" name="session_id" value="{session_id}">
-            <button type="submit">Sign Out</button>
-        </form>
+        <div class="center-column">
+            <h1>{welcome_message}</h1>
+            <h2>Game Actions</h2>
+            <form action="/new" method="post">
+                <button type="submit">Start New Game</button>
+            </form>
+            <form action="/rules" method="get">
+                <button type="submit">Game Rules</button>
+            </form>
+            <form action="/signout" method="post">
+                <input type="hidden" name="session_id" value="{session_id}">
+                <button type="submit">Sign Out</button>
+            </form>
+        </div>
+        <div class="right-column">
+            <h2>Players Online</h2>
+            <div class="player-list">
+                {players_html}
+            </div>
+        </div>
     </div>
 </body>
 </html>
