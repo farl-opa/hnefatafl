@@ -553,10 +553,8 @@ impl GameState {
     
             if neighbors
                 .iter()
-                .all(|&(nr, nc)| {
-                    self.is_within_bounds((nr, nc))
-                        && self.board[nr][nc].cell_type == CellType::Attacker
-                })
+                .filter(|&&(nr, nc)| self.is_within_bounds((nr, nc)))
+                .all(|&(nr, nc)| self.board[nr][nc].cell_type == CellType::Attacker)
             {
                 return Some(Cell {
                     cell_type: CellType::Attacker,

@@ -15,6 +15,8 @@ use serde::Deserialize;
 use tokio::sync::RwLock;
 use std::collections::HashMap;
 use uuid::Uuid;
+use warp::http::Method;
+use warp::cors;
 
 
 #[derive(Deserialize)]
@@ -739,7 +741,9 @@ async fn main() {
         .or(continue_game)
         .or(cell_click)
         .or(refresh_board)
-        .or(board_updates);
+        .or(board_updates)
+        .with(cors().allow_any_origin().allow_methods(vec![Method::GET, Method::POST]));
+
 
     // Start the server
     warp::serve(routes).run(([0, 0, 0, 0], 3030)).await;
