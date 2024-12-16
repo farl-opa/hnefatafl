@@ -86,23 +86,7 @@ async fn main() {
     let username_form = warp::path::end()
         .and(warp::get())
         .map(|| {
-            let html_content = r#"
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Enter Username</title>
-            </head>
-            <body>
-                <h1 style="text-align: center;">Enter Your Username</h1>
-                <form action="/main" method="post" style="text-align: center; margin-top: 20px;">
-                    <input type="text" name="username" placeholder="Enter username" required>
-                    <button type="submit">Submit</button>
-                </form>
-            </body>
-            </html>
-            "#;
+            let html_content = read_html_template("templates/username_form.html").unwrap();
 
             // Return the HTML as a response
             html(html_content)
