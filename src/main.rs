@@ -234,23 +234,18 @@ async fn main() {
 
 
     // Endpoint: Display the rules
+
     let rules = warp::path("rules")
         .and(warp::get())
         .map(move || {
-            // Read the HTML template from file
+            // Read the HTML template from file (assuming the file exists)
             let template_path = "templates/rules.html";
-            match read_html_template(template_path) {
-                Ok(template) => {
-                    // Return the template as a valid HTML response
-                    Ok(warp::reply::html(template))
-                }
-                Err(_) => {
-                    // Return 404 error if the template could not be read
-                    let not_found_html = "<html><body><h1>404 - Not Found</h1><p>The rules page could not be found.</p></body></html>";
-                    Ok(warp::reply::html(not_found_html.to_string()))
-                }
-            }
-    });
+            let template = read_html_template(template_path).unwrap(); // We assume the file exists and unwrap the result
+
+            // Return the template as a valid HTML response
+            warp::reply::html(template)
+        });
+
 
     // Endpoint: Create a new game
     let new_game = warp::path("new")
