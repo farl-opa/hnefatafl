@@ -47,7 +47,7 @@ async fn main() {
     // Initialize application state
     let state = AppState {
         games: Arc::new(RwLock::new(Vec::new())),
-        players: Arc::new(RwLock::new(HashMap::new())), // Initialize as an empty HashMap
+        players: Arc::new(RwLock::new(HashMap::new())),
     };
 
     let state_filter = warp::any().map(move || state.clone());
@@ -56,7 +56,6 @@ async fn main() {
     let username_form = warp::path::end()
         .and(warp::get())
         .map(|| {
-            // Define HTML content as a string
             let html_content = r#"
             <!DOCTYPE html>
             <html lang="en">
@@ -97,7 +96,12 @@ async fn main() {
                 let players_html: String = players
                     .iter()
                     .map(|(session_id, username)| {
-                        format!("<p style=\"text-align: center;\">Player {}: {}</p>", session_id, username)
+                        format!(
+                            r#"<div style='text-align: center;'><p>{} is online</p><form action='/signout' method='post' style='display: inline;'>
+                            <input type='hidden' name='session_id' value='{}'>
+                            <button type='submit'>Sign Out</button></form></div>"#,
+                            username, session_id
+                        )
                     })
                     .collect();
 
@@ -134,6 +138,28 @@ async fn main() {
             }
         });
 
+    // Handle POST request for signing out
+    let sign_out_post = warp::path("signout")
+        .and(warp::post()) // POST method
+        .and(warp::body::form()) // To receive form data
+        .and(state_filter.clone())
+        .and_then(|form: HashMap<String, String>, state: AppState| async move {
+            let session_id = form.get("session_id").expect("Session ID must be present");
+        
+            let mut players = state.players.write().await;
+            players.remove(session_id); // Remove the player from the list
+
+            // Redirect to the username input page
+            let response = warp::http::Response::builder()
+                .status(302)
+                .header("Location", "/")
+                .body("Redirecting...")
+                .unwrap();
+
+        Ok::<_, warp::Rejection>(response)
+    });
+
+
     // Handle GET request to show main page with the list of players
     let main_page_get = warp::path("main")
         .and(warp::get()) // GET method
@@ -146,7 +172,12 @@ async fn main() {
             let players_html: String = players
                 .iter()
                 .map(|(session_id, username)| {
-                    format!("<p style=\"text-align: center;\">Player {}: {}</p>", session_id, username)
+                    format!(
+                        r#"<div style='text-align: center;'><p>{} is online</p><form action='/signout' method='post' style='display: inline;'>
+                        <input type='hidden' name='session_id' value='{}'>
+                        <button type='submit'>Sign Out</button></form></div>"#,
+                        username, session_id
+                    )
                 })
                 .collect();
 
@@ -519,6 +550,7 @@ async fn main() {
         .or(username_form)
         .or(main_page_get)
         .or(main_page_post)
+        .or(sign_out_post)
         .or(rules)
         .or(new_game)
         .or(list_games)
