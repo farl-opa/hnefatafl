@@ -5,6 +5,7 @@ use warp::sse::Event;
 use warp::sse::reply;
 use warp::reply::html;
 use warp::reject::Reject;
+use warp::http::{Response, header::COOKIE, header::SET_COOKIE};
 use tokio::sync::broadcast;
 use std::sync::Arc;
 use std::fmt;
@@ -89,20 +90,16 @@ async fn main() {
                 let session_id = Uuid::new_v4().to_string(); // Generate a unique session ID
                 state.players.write().await.insert(session_id.clone(), username.clone());
 
+                // Set session_id in a cookie
+                let cookie = format!("session_id={}; Path=/; HttpOnly;", session_id);
+
                 // Now show the main page with the list of players
                 let players = state.players.read().await; // Read the list of connected players
 
                 // Build the players list in HTML
                 let players_html: String = players
-                    .iter()
-                    .map(|(session_id, username)| {
-                        format!(
-                            r#"<div style='text-align: center;'><p>{} is online</p><form action='/signout' method='post' style='display: inline;'>
-                            <input type='hidden' name='session_id' value='{}'>
-                            <button type='submit'>Sign Out</button></form></div>"#,
-                            username, session_id
-                        )
-                    })
+                    .values()
+                    .map(|username| format!("<p>{}</p>", username))
                     .collect();
 
                 // HTML response for the main page
@@ -114,29 +111,174 @@ async fn main() {
                         <meta charset="UTF-8">
                         <meta name="viewport" content="width=device-width, initial-scale=1.0">
                         <title>Hnefatafl - Main</title>
+                        <style>
+                            body {{
+                                font-family: Arial, sans-serif;
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                                justify-content: center;
+                                height: 100vh;
+                                margin: 0;
+                                text-align: center;
+                            }}
+                            .container {{
+                                width: 100%;
+                                max-width: 600px;
+                            }}
+                            h1, h2 {{
+                                margin-bottom: 20px;
+                            }}
+                            p {{
+                                font-size: 18px;
+                                margin: 5px 0;
+                            }}
+                            form {{
+                                margin-top: 20px;
+                            }}
+                            button {{
+                                padding: 10px 20px;
+                                font-size: 16px;
+                                cursor: pointer;
+                            }}
+                        </style>
                     </head>
                     <body>
-                        <h1 style="text-align: center;">Welcome to the Hnefatafl Server!</h1>
-                        <h2 style="text-align: center;">Players Online</h2>
-                        {}
-                        <form action="/new" method="post" style="text-align: center; margin-top: 20px;">
-                            <button type="submit">Start New Game</button>
-                        </form>
-                        <form action="/rules" method="get" style="text-align: center; margin-top: 20px;">
-                            <button type="submit">Game Rules</button>
-                        </form>
+                        <div class="container">
+                            <h1>Welcome to the Hnefatafl Server!</h1>
+                            <h2>Players Online</h2>
+                            <div>{}</div>
+                            <form action="/new" method="post">
+                                <button type="submit">Start New Game</button>
+                            </form>
+                            <form action="/rules" method="get">
+                                <button type="submit">Game Rules</button>
+                            </form>
+                            <form action="/signout" method="post">
+                                <input type="hidden" name="session_id" value="{}">
+                                <button type="submit">Sign Out</button>
+                            </form>
+                        </div>
                     </body>
                     </html>
                     "#,
-                    players_html
+                    players_html, session_id
                 );
 
-                Ok::<_, warp::Rejection>(html(response))
+                Ok::<_, warp::Rejection>(Response::builder()
+                    .header(SET_COOKIE, cookie)
+                    .body(response)
+                    .unwrap())
             } else {
-                // If no username, we can reject the request or handle it as an error
+                // If no username, reject the request
                 Err(warp::reject::custom(MissingUsername))
             }
-        });
+    });
+
+
+
+    // Handle GET request to show main page with the list of players
+    let main_page_get = warp::path("main")
+    .and(warp::get()) // GET method
+    .and(warp::header::optional("cookie")) // Retrieve cookies
+    .and(state_filter.clone())
+    .and_then(|cookie: Option<String>, state: AppState| async move {
+        // Extract session_id from the cookie if available
+        let session_id = cookie
+            .and_then(|cookie_str| {
+                cookie_str
+                    .split(';')
+                    .find(|cookie| cookie.starts_with("session_id="))
+                    .and_then(|cookie| cookie.split('=').nth(1))
+            });
+
+        // Check if session_id is valid and exists in the player list
+        if let Some(session_id) = session_id {
+            if let Some(username) = state.players.read().await.get(session_id) {
+                // Render the main page with the list of players
+                let players = state.players.read().await;
+                let players_html: String = players
+                    .values()
+                    .map(|username| format!("<p>{}</p>", username))
+                    .collect();
+
+                let response = format!(
+                    r#"
+                    <!DOCTYPE html>
+                    <html lang="en">
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <title>Hnefatafl - Main</title>
+                        <style>
+                            body {{
+                                font-family: Arial, sans-serif;
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                                justify-content: center;
+                                height: 100vh;
+                                margin: 0;
+                                text-align: center;
+                            }}
+                            .container {{
+                                width: 100%;
+                                max-width: 600px;
+                            }}
+                            h1, h2 {{
+                                margin-bottom: 20px;
+                            }}
+                            p {{
+                                font-size: 18px;
+                                margin: 5px 0;
+                            }}
+                            form {{
+                                margin-top: 20px;
+                            }}
+                            button {{
+                                padding: 10px 20px;
+                                font-size: 16px;
+                                cursor: pointer;
+                            }}
+                        </style>
+                    </head>
+                    <body>
+                        <div class="container">
+                            <h1>Welcome to the Hnefatafl Server!</h1>
+                            <h2>Players Online</h2>
+                            <div>{}</div>
+                            <form action="/new" method="post">
+                                <button type="submit">Start New Game</button>
+                            </form>
+                            <form action="/rules" method="get">
+                                <button type="submit">Game Rules</button>
+                            </form>
+                            <form action="/signout" method="post">
+                                <input type="hidden" name="session_id" value="{}">
+                                <button type="submit">Sign Out</button>
+                            </form>
+                        </div>
+                    </body>
+                    </html>
+                    "#,
+                    players_html, session_id
+                );
+
+                return Ok(warp::reply::html(response)); // Return HTML response for the main page
+            }
+        }
+
+        // If session_id is invalid or missing, redirect to home page
+        let redirect_response = warp::http::Response::builder()
+            .status(302)
+            .header("Location", "/")
+            .body("Redirecting...") // Plain text body for the redirect
+            .unwrap();
+
+        Ok(warp::reply::with_status(redirect_response, warp::http::StatusCode::FOUND)) // Return redirect
+    });
+
+
 
     // Handle POST request for signing out
     let sign_out_post = warp::path("signout")
@@ -145,7 +287,7 @@ async fn main() {
         .and(state_filter.clone())
         .and_then(|form: HashMap<String, String>, state: AppState| async move {
             let session_id = form.get("session_id").expect("Session ID must be present");
-        
+
             let mut players = state.players.write().await;
             players.remove(session_id); // Remove the player from the list
 
@@ -156,59 +298,9 @@ async fn main() {
                 .body("Redirecting...")
                 .unwrap();
 
-        Ok::<_, warp::Rejection>(response)
-    });
-
-
-    // Handle GET request to show main page with the list of players
-    let main_page_get = warp::path("main")
-        .and(warp::get()) // GET method
-        .and(state_filter.clone())
-        .and_then(|state: AppState| async move {
-            // Read the list of connected players
-            let players = state.players.read().await;
-
-            // Build the players list in HTML
-            let players_html: String = players
-                .iter()
-                .map(|(session_id, username)| {
-                    format!(
-                        r#"<div style='text-align: center;'><p>{} is online</p><form action='/signout' method='post' style='display: inline;'>
-                        <input type='hidden' name='session_id' value='{}'>
-                        <button type='submit'>Sign Out</button></form></div>"#,
-                        username, session_id
-                    )
-                })
-                .collect();
-
-            // HTML response for the main page
-            let response = format!(
-                r#"
-                <!DOCTYPE html>
-                <html lang="en">
-                <head>
-                    <meta charset="UTF-8">
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <title>Hnefatafl - Main</title>
-                </head>
-                <body>
-                    <h1 style="text-align: center;">Welcome to the Hnefatafl Server!</h1>
-                    <h2 style="text-align: center;">Players Online</h2>
-                    {}
-                    <form action="/new" method="post" style="text-align: center; margin-top: 20px;">
-                        <button type="submit">Start New Game</button>
-                    </form>
-                    <form action="/rules" method="get" style="text-align: center; margin-top: 20px;">
-                        <button type="submit">Game Rules</button>
-                    </form>
-                </body>
-                </html>
-                "#,
-                players_html
-            );
-
-            Ok::<_, warp::Rejection>(html(response))
+            Ok::<_, warp::Rejection>(response)
         });
+
 
     // Endpoint: Display the rules
     let rules = warp::path("rules")
