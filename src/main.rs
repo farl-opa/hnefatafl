@@ -9,6 +9,7 @@ use warp::http::{Response, header::SET_COOKIE};
 use tokio::sync::broadcast;
 use std::sync::Arc;
 use std::fmt;
+use std::fs;
 mod hnefatafl;
 use hnefatafl::{GameState, Cell, CellType};
 use serde::Deserialize;
