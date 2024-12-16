@@ -64,6 +64,11 @@ fn get_session_id_from_cookie(headers: &warp::http::HeaderMap) -> Option<String>
         })
 }
 
+// Helper function to read the HTML template from a file
+fn read_html_template(path: &str) -> Result<String, std::io::Error> {
+    fs::read_to_string(path)
+}
+
 #[tokio::main]
 async fn main() {
     // Static file serving for images
@@ -121,68 +126,15 @@ async fn main() {
                         .map(|username| format!("<p>{}</p>", username))
                         .collect();
 
-                    // HTML response for the main page
-                    let response = format!(
-                        r#"
-                        <!DOCTYPE html>
-                        <html lang="en">
-                        <head>
-                            <meta charset="UTF-8">
-                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                            <title>Hnefatafl - Main</title>
-                            <style>
-                                body {{
-                                    font-family: Arial, sans-serif;
-                                    display: flex;
-                                    flex-direction: column;
-                                    align-items: center;
-                                    justify-content: center;
-                                    height: 100vh;
-                                    margin: 0;
-                                    text-align: center;
-                                }}
-                                .container {{
-                                    width: 100%;
-                                    max-width: 600px;
-                                }}
-                                h1, h2 {{
-                                    margin-bottom: 20px;
-                                }}
-                                p {{
-                                    font-size: 18px;
-                                    margin: 5px 0;
-                                }}
-                                form {{
-                                    margin-top: 20px;
-                                }}
-                                button {{
-                                    padding: 10px 20px;
-                                    font-size: 16px;
-                                    cursor: pointer;
-                                }}
-                            </style>
-                        </head>
-                        <body>
-                            <div class="container">
-                                <h1>Welcome back, {}!</h1>
-                                <h2>Players Online</h2>
-                                <div>{}</div>
-                                <form action="/new" method="post">
-                                    <button type="submit">Start New Game</button>
-                                </form>
-                                <form action="/rules" method="get">
-                                    <button type="submit">Game Rules</button>
-                                </form>
-                                <form action="/signout" method="post">
-                                    <input type="hidden" name="session_id" value="{}">
-                                    <button type="submit">Sign Out</button>
-                                </form>
-                            </div>
-                        </body>
-                        </html>
-                        "#,
-                        username, players_html, session_id
-                    );
+                    // Read the HTML template from file
+                    let template_path = "templates/index.html";
+                    let template = read_html_template(template_path).unwrap();
+
+                    // Replace placeholders in the template with dynamic content
+                    let response = template
+                        .replace("{welcome_message}", &format!("Welcome back, {}!", username))
+                        .replace("{players_html}", &players_html)
+                        .replace("{session_id}", &session_id);
 
                     return Ok::<_, warp::Rejection>(Response::builder().body(response).unwrap());
                 }
@@ -205,68 +157,15 @@ async fn main() {
                     .map(|username| format!("<p>{}</p>", username))
                     .collect();
 
-                // HTML response for the main page
-                let response = format!(
-                    r#"
-                    <!DOCTYPE html>
-                    <html lang="en">
-                    <head>
-                        <meta charset="UTF-8">
-                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                        <title>Hnefatafl - Main</title>
-                        <style>
-                            body {{
-                                font-family: Arial, sans-serif;
-                                display: flex;
-                                flex-direction: column;
-                                align-items: center;
-                                justify-content: center;
-                                height: 100vh;
-                                margin: 0;
-                                text-align: center;
-                            }}
-                            .container {{
-                                width: 100%;
-                                max-width: 600px;
-                            }}
-                            h1, h2 {{
-                                margin-bottom: 20px;
-                            }}
-                            p {{
-                                font-size: 18px;
-                                margin: 5px 0;
-                            }}
-                            form {{
-                                margin-top: 20px;
-                            }}
-                            button {{
-                                padding: 10px 20px;
-                                font-size: 16px;
-                                cursor: pointer;
-                            }}
-                        </style>
-                    </head>
-                    <body>
-                        <div class="container">
-                            <h1>Welcome to the Hnefatafl Server!</h1>
-                            <h2>Players Online</h2>
-                            <div>{}</div>
-                            <form action="/new" method="post">
-                                <button type="submit">Start New Game</button>
-                            </form>
-                            <form action="/rules" method="get">
-                                <button type="submit">Game Rules</button>
-                            </form>
-                            <form action="/signout" method="post">
-                                <input type="hidden" name="session_id" value="{}">
-                                <button type="submit">Sign Out</button>
-                            </form>
-                        </div>
-                    </body>
-                    </html>
-                    "#,
-                    players_html, session_id
-                );
+                // Read the HTML template from file
+                let template_path = "templates/main_page.html";
+                let template = read_html_template(template_path).unwrap();
+
+                // Replace placeholders in the template with dynamic content
+                let response = template
+                    .replace("{welcome_message}", "Welcome to the Hnefatafl Server!")
+                    .replace("{players_html}", &players_html)
+                    .replace("{session_id}", &session_id);
 
                 return Ok::<_, warp::Rejection>(Response::builder()
                     .header(SET_COOKIE, cookie)
@@ -278,14 +177,12 @@ async fn main() {
             Err(warp::reject::custom(MissingUsername))
         });
 
-
-    // Handle GET request for the main page
+    // Handle GET request for the main page (similarly as in the previous example)
     let main_page_get = warp::path("main")
         .and(warp::get()) // GET method
         .and(state_filter.clone()) // Access app state
         .and(warp::header::headers_cloned()) // Get the headers (to check cookies)
         .and_then(|state: AppState, headers: warp::http::HeaderMap| async move {
-            // Extract session_id from the cookie
             if let Some(session_id) = get_session_id_from_cookie(&headers) {
                 // Check if the session_id exists in the players map
                 let players = state.players.read().await;
@@ -296,82 +193,23 @@ async fn main() {
                         .map(|username| format!("<p>{}</p>", username))
                         .collect();
 
-                    // HTML response for the main page
-                    let response = format!(
-                        r#"
-                        <!DOCTYPE html>
-                        <html lang="en">
-                        <head>
-                            <meta charset="UTF-8">
-                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                            <title>Hnefatafl - Main</title>
-                            <style>
-                                body {{
-                                    font-family: Arial, sans-serif;
-                                    display: flex;
-                                    flex-direction: column;
-                                    align-items: center;
-                                    justify-content: center;
-                                    height: 100vh;
-                                    margin: 0;
-                                    text-align: center;
-                                }}
-                                .container {{
-                                    width: 100%;
-                                    max-width: 600px;
-                                }}
-                                h1, h2 {{
-                                    margin-bottom: 20px;
-                                }}
-                                p {{
-                                    font-size: 18px;
-                                    margin: 5px 0;
-                                }}
-                                form {{
-                                    margin-top: 20px;
-                                }}
-                                button {{
-                                    padding: 10px 20px;
-                                    font-size: 16px;
-                                    cursor: pointer;
-                                }}
-                            </style>
-                        </head>
-                        <body>
-                            <div class="container">
-                                <h1>Welcome to the Hnefatafl Server, {}!</h1>
-                                <h2>Players Online</h2>
-                                <div>{}</div>
-                                <form action="/new" method="post">
-                                    <button type="submit">Start New Game</button>
-                                </form>
-                                <form action="/rules" method="get">
-                                    <button type="submit">Game Rules</button>
-                                </form>
-                                <form action="/signout" method="post">
-                                    <input type="hidden" name="session_id" value="{}">
-                                    <button type="submit">Sign Out</button>
-                                </form>
-                            </div>
-                        </body>
-                        </html>
-                        "#,
-                        username, players_html, session_id
-                    );
+                    // Read the HTML template from file
+                    let template_path = "templates/main_page.html";
+                    let template = read_html_template(template_path).unwrap();
 
-                    Ok::<_, warp::Rejection>(Response::builder()
-                        .body(response)
-                        .unwrap())
-                } else {
-                    // If no username is found for the session, redirect to a login page
-                    Err(warp::reject::not_found())
+                    // Replace placeholders in the template with dynamic content
+                    let response = template
+                        .replace("{welcome_message}", &format!("Welcome back, {}!", username))
+                        .replace("{players_html}", &players_html)
+                        .replace("{session_id}", &session_id);
+
+                    return Ok::<_, warp::Rejection>(Response::builder().body(response).unwrap());
                 }
-            } else {
-                // If no session_id is found in cookies, redirect to login page
-                Err(warp::reject::not_found())
             }
-        });
 
+            // If no session exists, redirect to login page (you can return a 404 or redirect)
+            Err(warp::reject::not_found())
+        });
 
     // Handle POST request for signing out
     let sign_out_post = warp::path("signout")
@@ -397,97 +235,22 @@ async fn main() {
 
     // Endpoint: Display the rules
     let rules = warp::path("rules")
-    .and(warp::get())
-    .and_then(|| async {
-        let response = r#"<!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Game Rules - Hnefatafl</title>
-            <style>
-                body {
-                    line-height: 1.6;
-                    margin: 20px;
+        .and(warp::get())
+        .map(move || {
+            // Read the HTML template from file
+            let template_path = "templates/rules.html";
+            match read_html_template(template_path) {
+                Ok(template) => {
+                    // Return the template as a valid HTML response
+                    Ok(warp::reply::html(template))
                 }
-                h1 {
-                    text-align: center;
-                    color: #555;
+                Err(_) => {
+                    // Return 404 error if the template could not be read
+                    let not_found_html = "<html><body><h1>404 - Not Found</h1><p>The rules page could not be found.</p></body></html>";
+                    Ok(warp::reply::html(not_found_html.to_string()))
                 }
-                h2 {
-                    text-align: center;
-                }
-                ul {
-                    list-style-position: inside;
-                    padding: 0;
-                }
-                ul li {
-                    display: block;
-                    text-align: center;
-                }
-                p, ul {
-                    text-align: center;
-                    margin-bottom: 1.2em;
-                    max-width: 600px;
-                    margin-left: auto;
-                    margin-right: auto;
-                }
-            </style>
-        </head>
-        <body>
-            <h1>Hnefatafl Game Rules</h1>
-            <div>
-                <p>Hnefatafl is an ancient Norse strategy board game. Two sides compete in an asymmetrical battle. The Defenders protect their King, while the Attackers attempt to capture him.</p>
-                
-                <h2>Objective</h2>
-                <ul>
-                    <li><strong>Defenders:</strong> Help the King escape to one of the four corners of the board.</li>
-                    <li><strong>Attackers:</strong> Capture the King by surrounding him on all four sides.</li>
-                </ul>
-                
-                <h2>Board Setup</h2>
-                <ul>
-                    <li>The King starts on the central square (the Throne).</li>
-                    <li>Defenders are symmetrically placed around the King.</li>
-                    <li>Attackers are placed on the board edges, forming a cross-like pattern.</li>
-                </ul>
-                
-                <h2>Movement</h2>
-                <ul>
-                    <li>All pieces move horizontally or vertically, like a rook in chess.</li>
-                    <li>Pieces cannot move through or land on other pieces.</li>
-                    <li>Only the King may occupy the Throne or escape to a corner square.</li>
-                </ul>
-                
-                <h2>Capturing</h2>
-                <ul>
-                    <li>A piece is captured by being sandwiched between two opposing pieces.</li>
-                    <li>The King is captured by surrounding him on all four sides.</li>
-                    <li>If adjacent to the Throne or an edge, the King is captured when surrounded on the remaining three sides.</li>
-                </ul>
-                
-                <h2>Reinforced Corners Rule</h2>
-                <p>The Throne and corners can act as allies for capturing enemy pieces. For example, if an Attacker is sandwiched between a Defender and the Throne, the Attacker is captured.</p>
-                
-                <h2>Game End</h2>
-                <ul>
-                    <li>The Defenders win if the King escapes to a corner.</li>
-                    <li>The Attackers win if the King is captured.</li>
-                </ul>
-                
-                <div class="back-link">
-                    <form action="/main" method="get" style="text-align: center; margin-top: 20px;">
-                        <button type="submit" class="back-button">Back to Home</button>
-                    </form>
-                </div>
-
-            </div>
-        </body>
-        </html>"#;
-
-        Ok::<_, warp::Rejection>(warp::reply::html(response.to_string()))
+            }
     });
-
 
     // Endpoint: Create a new game
     let new_game = warp::path("new")
