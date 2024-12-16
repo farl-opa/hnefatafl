@@ -1,22 +1,25 @@
 #[warn(unused_variables)]
-
-use warp::Filter;
-use warp::sse::Event;
-use warp::sse::reply;
-use warp::reply::html;
-use warp::reject::Reject;
-use warp::http::{Response, header::SET_COOKIE};
-use tokio::sync::broadcast;
-use std::sync::Arc;
+use std::collections::HashMap;
 use std::fmt;
+use std::sync::Arc;
+
+use serde::Deserialize;
+use tokio::sync::{broadcast, RwLock};
+
+use uuid::Uuid;
+use warp::{
+    self,
+    Filter,
+    http::{Response, Method, header::SET_COOKIE},
+    reject::Reject,
+    reply::html,
+    sse::{Event, reply},
+    cors,
+};
+
 mod hnefatafl;
 use hnefatafl::{GameState, Cell, CellType};
-use serde::Deserialize;
-use tokio::sync::RwLock;
-use std::collections::HashMap;
-use uuid::Uuid;
-use warp::http::Method;
-use warp::cors;
+
 
 
 #[derive(Deserialize)]
