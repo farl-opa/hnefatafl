@@ -266,9 +266,8 @@ async fn main() {
             // Replace placeholders in the template with dynamic content
             let response = template
                 .replace("{board_message}", &format!("Welcome back, {}!", &board_message))
-                .replace("{CSS}", &CSS)
                 .replace("{board_html}", &board_html);
-            
+
             Ok::<_, warp::Rejection>(warp::reply::html(response))
         });
 
@@ -559,53 +558,3 @@ fn render_board_as_html(board: &Vec<Vec<Cell>>) -> String {
 }
 
 
-
-
-// Add CSS updates for coordinates
-const CSS: &str = r#"
-<style>
-    table {
-        border-collapse: collapse;
-        margin: 20px auto;
-    }
-    td {
-        width: 40px;
-        height: 40px;
-        text-align: center;
-        border: 1px solid black;
-        font-weight: bold;
-        font-size: 16px;
-    }
-    .piece {
-        width: 35px;
-        height: 35px;
-    }
-    .empty { background-color: #f0f0f0; }
-    .attacker { background-color: #f0f0f0; }
-    .defender { background-color: #f0f0f0; }
-    .king { background-color: #f0f0f0; }
-    .corner-cell { background-color: #8cf367; }
-    .throne-cell { background-color: #D53E3E}
-    .selected-cell { background-color: #8c8c8c; }
-    .possible-cell { 
-        position: relative;
-    }
-    .possible-cell::before {
-        content: '';
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: 10px;
-        height: 10px;
-        background-color: green;
-        border-radius: 50%;
-        transform: translate(-50%, -50%);
-    }
-    .coordinates {
-        font-size: 12px;
-        font-weight: normal;
-    }
-</style>
-
-
-"#;
