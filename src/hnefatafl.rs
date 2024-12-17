@@ -63,11 +63,12 @@ pub struct GameState {
     pub from: (usize, usize),  // From position
     pub board_message: String, // Message to display on the board
     pub last_click: (usize, usize), // Last clicked cell
+    pub id: usize,
 }
 
 impl GameState {
     /// Creates a new game with the initial Hnefatafl board.
-    pub fn new() -> Self {
+    pub fn new(id: usize) -> Self {
         let mut board = vec![
             vec![
                 Cell {
@@ -156,6 +157,7 @@ impl GameState {
             from: (0, 0),
             board_message: "Current turn: Attacker".to_string(),
             last_click: (0, 0),
+            id: id,
         }
     }
     

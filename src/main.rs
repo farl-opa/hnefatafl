@@ -20,6 +20,7 @@ use warp::{
 
 mod hnefatafl;
 use hnefatafl::{GameState, Cell, CellType};
+use rand::Rng;
 
 
 
@@ -45,29 +46,6 @@ impl fmt::Display for MissingUsername {
 }
 
 impl Reject for MissingUsername {}
-
-// Helper to get the session ID from the cookie
-fn get_session_id_from_cookie(headers: &warp::http::HeaderMap) -> Option<String> {
-    headers
-        .get("cookie")
-        .and_then(|cookie| cookie.to_str().ok())
-        .and_then(|cookie_str| {
-            cookie_str
-                .split(';')
-                .find_map(|cookie| {
-                    if cookie.trim_start().starts_with("session_id=") {
-                        Some(cookie.trim_start()[11..].to_string()) // Extract session ID
-                    } else {
-                        None
-                    }
-                })
-        })
-}
-
-// Helper function to read the HTML template from a file
-fn read_html_template(path: &str) -> Result<String, std::io::Error> {
-    fs::read_to_string(path)
-}
 
 #[tokio::main]
 async fn main() {
@@ -229,16 +207,34 @@ async fn main() {
             // Return the template as a valid HTML response
             warp::reply::html(template)
         });
-
-
-    // Endpoint: Create a new game
-    let new_game = warp::path("new")
-        .and(warp::post().or(warp::get())) // Accept both POST and GET
-        .unify()
+    
+    // Endpoint: Create a new game and redirect to it
+    let new_game_redirect = warp::path("new")
+        .and(warp::post())
         .and(state_filter.clone())
         .and_then(|state: AppState| async move {
             let mut games = state.games.write().await;
-            let game = GameState::new();
+            let id = generate_random_id();
+            let game = GameState::new(id);
+            games.push(Some(game)); // Store the new game
+
+            // Redirect to the new game page
+            let response = warp::http::Response::builder()
+                .status(302)
+                .header("Location", format!("/game/{}", id))
+                .body("Redirecting to new game...")
+                .unwrap();
+
+            Ok::<_, warp::Rejection>(response)
+        });
+
+    // Endpoint: Create a new game
+    let new_game = warp::path!("game" / usize)
+        .and(warp::get())
+        .and(state_filter.clone())
+        .and_then(|id: usize, state: AppState| async move {
+            let mut games = state.games.write().await;
+            let game = GameState::new(id);
             let board_html = render_board_as_html(&game.board);
             let board_message = game.board_message.clone();        
             games.push(Some(game)); // Store the new game
@@ -250,9 +246,38 @@ async fn main() {
             // Replace placeholders in the template with dynamic content
             let response = template
                 .replace("{board_message}", &format!("{}", &board_message))
-                .replace("{board_html}", &board_html);
+                .replace("{board_html}", &board_html)
+                .replace("{id}", &id.to_string());
 
             Ok::<_, warp::Rejection>(warp::reply::html(response))
+        });
+
+    // Endpoint: Join a game by IP
+    let join_game_by_id = warp::path("join")
+        .and(warp::post())
+        .map( || {
+            // Read the HTML template from file
+            let template_path = "templates/join_game.html";
+            let template = read_html_template(template_path);
+            // If no matching game is found, return the join game page
+            html(template.unwrap())
+        });
+
+    // Endpoint: Redirect to a game by ID
+    let redirect_to_game = warp::path!("redirect" / usize)
+        .and(state_filter.clone())
+        .and_then(|game_id: usize, state: AppState| async move {
+            let games = state.games.read().await;
+            if games.iter().any(|game| game.as_ref().map_or(false, |g| g.id == game_id)) {
+                let response = warp::http::Response::builder()
+                    .status(302)
+                    .header("Location", format!("/game/{}", game_id))
+                    .body("Redirecting to game...")
+                    .unwrap();
+                Ok::<_, warp::Rejection>(response)
+            } else {
+                Err(warp::reject::not_found())
+            }
         });
 
     // Create a broadcast channel for board updates
@@ -457,6 +482,9 @@ async fn main() {
         .or(cell_click)
         .or(refresh_board)
         .or(board_updates)
+        .or(join_game_by_id)
+        .or(redirect_to_game)
+        .or(new_game_redirect)
         .with(cors().allow_any_origin().allow_methods(vec![Method::GET, Method::POST]));
 
 
@@ -539,6 +567,36 @@ fn render_board_as_html(board: &Vec<Vec<Cell>>) -> String {
 
     html.push_str("</table>");
     html
+}
+
+// Helper to get the session ID from the cookie
+fn get_session_id_from_cookie(headers: &warp::http::HeaderMap) -> Option<String> {
+    headers
+        .get("cookie")
+        .and_then(|cookie| cookie.to_str().ok())
+        .and_then(|cookie_str| {
+            cookie_str
+                .split(';')
+                .find_map(|cookie| {
+                    if cookie.trim_start().starts_with("session_id=") {
+                        Some(cookie.trim_start()[11..].to_string()) // Extract session ID
+                    } else {
+                        None
+                    }
+                })
+        })
+}
+
+// Helper function to read the HTML template from a file
+fn read_html_template(path: &str) -> Result<String, std::io::Error> {
+    fs::read_to_string(path)
+}
+
+/// Helper function to generate a random ID of 8 digits
+fn generate_random_id() -> usize {
+    let mut rng = rand::thread_rng();
+    let id: usize = rng.gen_range(10000000..100000000); // Generate a random number between 10000000 and 99999999
+    id
 }
 
 
