@@ -116,7 +116,7 @@ async fn main() {
 
                     // Replace placeholders in the template with dynamic content
                     let response = template
-                        .replace("{welcome_message}", &format!("Welcome back, {}!", username))
+                        .replace("{welcome_message}", &format!("Welcome to the Hnefatafl server, {}!", username))
                         .replace("{players_html}", &players_html)
                         .replace("{session_id}", &session_id);
 
@@ -147,7 +147,7 @@ async fn main() {
 
                 // Replace placeholders in the template with dynamic content
                 let response = template
-                    .replace("{welcome_message}", "Welcome to the Hnefatafl Server!")
+                    .replace("{welcome_message}", &format!("Welcome to the Hnefatafl server, {}!", username))
                     .replace("{players_html}", &players_html)
                     .replace("{session_id}", &session_id);
 
@@ -183,7 +183,7 @@ async fn main() {
 
                     // Replace placeholders in the template with dynamic content
                     let response = template
-                        .replace("{welcome_message}", &format!("Welcome back, {}!", username))
+                        .replace("{welcome_message}", &format!("Welcome to the Hnefatafl server, {}!", username))
                         .replace("{players_html}", &players_html)
                         .replace("{session_id}", &session_id);
 
@@ -249,7 +249,7 @@ async fn main() {
 
             // Replace placeholders in the template with dynamic content
             let response = template
-                .replace("{board_message}", &format!("Welcome back, {}!", &board_message))
+                .replace("{board_message}", &format!("{}", &board_message))
                 .replace("{board_html}", &board_html);
 
             Ok::<_, warp::Rejection>(warp::reply::html(response))
