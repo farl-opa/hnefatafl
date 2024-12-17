@@ -309,8 +309,10 @@ impl GameState {
             }
         }
 
-        valid_moves.retain(|&x| x != (5, 5));
-
+        if cell.cell_type != CellType::King {
+            valid_moves.retain(|&x| x != (5, 5));
+        }
+        
         valid_moves
     }
     
@@ -436,7 +438,8 @@ impl GameState {
                         && (self.board[nnx][nny].cell_type == cell.cell_type 
                             || self.board[nnx][nny].is_corner 
                             || self.board[nnx][nny].cell_type == CellType::King
-                            || self.board[nnx][nny].cell_type == CellType::Defender)
+                            || self.board[nnx][nny].cell_type == CellType::Defender
+                            || self.board[nnx][nny].is_throne)
                     {
                         // Capture the opponent's piece by setting it to Empty
                         self.board[nx][ny] = Cell {
@@ -452,7 +455,8 @@ impl GameState {
                     if self.board[nx][ny].cell_type == opposite
                         && self.is_within_bounds((nnx, nny))
                         && (self.board[nnx][nny].cell_type == cell.cell_type 
-                            || self.board[nnx][nny].is_corner)
+                            || self.board[nnx][nny].is_corner
+                            || (self.board[nnx][nny].is_throne && self.board[nnx][nny].cell_type == CellType::Empty))
                     {
                         // Capture the opponent's piece by setting it to Empty
                         self.board[nx][ny] = Cell {
