@@ -24,6 +24,8 @@ use tablut::{GameState as TablutGameState, Cell as TablutCell, CellType as Tablu
 mod hnefatafl;
 use hnefatafl::{GameState as HnefataflGameState, Cell as HnefataflCell, CellType as HnefataflCellType};
 
+mod brandubh;
+use brandubh::{GameState as BrandubhGameState, Cell as BrandubhCell, CellType as BrandubhCellType};
 use rand::Rng;
 
 #[derive(Clone)]
@@ -36,6 +38,7 @@ struct AppState {
 enum GameVariant {
     Tablut(TablutGameState),
     Hnefatafl(HnefataflGameState),
+    Brandubh(BrandubhGameState),
 }
 
 #[derive(Deserialize)]
@@ -236,9 +239,40 @@ async fn main() {
             // Return the template as a valid HTML response
             warp::reply::html(template)
         });
+
+    let game_mode = warp::path("game_mode")
+        .and(warp::post())
+        .map(move || {
+            // Read the HTML template from file (assuming the file exists)
+            let template_path = "templates/game_mode.html";
+            let template = read_html_template(template_path).unwrap(); // We assume the file exists and unwrap the result
+
+            // Return the template as a valid HTML response
+            html(template)
+        });
     
     // Endpoint: Create a new game and redirect to it
-    let new_game_redirect = warp::path("new")
+    let hnefatafl_redirect = warp::path("hnefatafl_redirect")
+        .and(warp::post())
+        .and(state_filter.clone())
+        .and_then(|state: AppState| async move {
+            let mut games = state.games.write().await;
+            let id = generate_random_id();
+            let game = GameVariant::Hnefatafl(HnefataflGameState::new(id));
+            games.push(Some(game)); // Store the new game
+
+            // Redirect to the new game page
+            let response = warp::http::Response::builder()
+                .status(302)
+                .header("Location", format!("/game/{}", id))
+                .body("Redirecting to new game...")
+                .unwrap();
+
+            Ok::<_, warp::Rejection>(response)
+        });
+
+    // Endpoint: Create a new game and redirect to it
+    let tablut_redirect = warp::path("tablut_redirect")
         .and(warp::post())
         .and(state_filter.clone())
         .and_then(|state: AppState| async move {
@@ -257,29 +291,87 @@ async fn main() {
             Ok::<_, warp::Rejection>(response)
         });
 
+    // Endpoint: Create a new game and redirect to it
+    let brandubh_redirect = warp::path("brandubh_redirect")
+        .and(warp::post())
+        .and(state_filter.clone())
+        .and_then(|state: AppState| async move {
+            let mut games = state.games.write().await;
+            let id = generate_random_id();
+            let game = GameVariant::Brandubh(BrandubhGameState::new(id));
+            games.push(Some(game)); // Store the new game
+
+            // Redirect to the new game page
+            let response = warp::http::Response::builder()
+                .status(302)
+                .header("Location", format!("/game/{}", id))
+                .body("Redirecting to new game...")
+                .unwrap();
+
+            Ok::<_, warp::Rejection>(response)
+        });
+
+
     // Endpoint: Create a new game
     let new_game = warp::path!("game" / usize)
-        .and(warp::get())
-        .and(state_filter.clone())
-        .and_then(|id: usize, state: AppState| async move {
-            let mut games = state.games.write().await;
-            let game = TablutGameState::new(id);
-            let board_html = render_tablut_board_as_html(&game.board);
-            let board_message = game.board_message.clone();        
-            games.push(Some(GameVariant::Tablut(game))); // Store the new game
+    .and(warp::get())
+    .and(state_filter.clone())
+    .and_then(|id: usize, state: AppState| async move {
+        let mut games = state.games.write().await;
 
+        let mut board_html = String::new();
+        let mut board_message = String::new();
+
+        // Iterate over all game variants and check for the ID
+        let found_game = games.iter().any(|game_option| {
+            game_option.as_ref().map_or(false, |game_variant| match game_variant {
+                GameVariant::Tablut(game) => {
+                    if game.id == id {
+                        board_html = render_tablut_board_as_html(&game.board);
+                        board_message = game.board_message.clone();
+                        true
+                    } else {
+                        false
+                    }
+                }
+                GameVariant::Hnefatafl(game) => {
+                    if game.id == id {
+                        board_html = render_hnefatafl_board_as_html(&game.board);
+                        board_message = game.board_message.clone();
+                        true
+                    } else {
+                        false
+                    }
+                }
+                GameVariant::Brandubh(game) => {
+                    if game.id == id {
+                        board_html = render_brandubh_board_as_html(&game.board);
+                        board_message = game.board_message.clone();
+                        true
+                    } else {
+                        false
+                    }
+                }
+            })
+        });
+
+        if found_game {
             // Read the HTML template from file
             let template_path = "templates/game.html";
             let template = read_html_template(template_path).unwrap();
 
             // Replace placeholders in the template with dynamic content
             let response = template
-                .replace("{board_message}", &format!("{}", &board_message))
+                .replace("{board_message}", &board_message)
                 .replace("{board_html}", &board_html)
                 .replace("{id}", &id.to_string());
 
             Ok::<_, warp::Rejection>(warp::reply::html(response))
-        });
+        } else {
+            Err(warp::reject::not_found())
+        }
+    });
+
 
     // Endpoint: Join a game by IP
     let join_game_by_id = warp::path("join")
@@ -303,6 +395,7 @@ async fn main() {
                 game_option.as_ref().map_or(false, |game_variant| match game_variant {
                     GameVariant::Tablut(game) => game.id == game_id,
                     GameVariant::Hnefatafl(game) => game.id == game_id,
+                    GameVariant::Brandubh(game) => game.id == game_id,
                 })
             }) {
                 let response = warp::http::Response::builder()
@@ -362,6 +455,11 @@ async fn main() {
                             GameVariant::Hnefatafl(game) => {
                                 let process_result = game.process_click(click.row, click.col);
                                 let board_html = render_hnefatafl_board_as_html(&game.board);
+                                (board_html, game.board_message.clone(), process_result)
+                            }
+                            GameVariant::Brandubh(game) => {
+                                let process_result = game.process_click(click.row, click.col);
+                                let board_html = render_brandubh_board_as_html(&game.board);
                                 (board_html, game.board_message.clone(), process_result)
                             }
                         };
@@ -482,6 +580,10 @@ async fn main() {
                             render_hnefatafl_board_as_html(&game.board),
                             game.board_message.clone(),
                         ),
+                        GameVariant::Brandubh(game) => (
+                            render_brandubh_board_as_html(&game.board),
+                            game.board_message.clone(),
+                        ),
                     };
 
                     return Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
@@ -585,7 +687,10 @@ async fn main() {
         .or(board_updates)
         .or(join_game_by_id)
         .or(redirect_to_game)
-        .or(new_game_redirect)
+        .or(hnefatafl_redirect)
+        .or(tablut_redirect)
+        .or(brandubh_redirect)
+        .or(game_mode)
         .with(cors().allow_any_origin().allow_methods(vec![Method::GET, Method::POST]));
 
 
@@ -692,6 +797,74 @@ fn render_hnefatafl_board_as_html(board: &Vec<Vec<HnefataflCell>>) -> String {
                     r#"<img src="/images/defender.png" alt="Defender" class="piece" />"#,
                 ),
                 HnefataflCellType::King => (
+                    "king",
+                    r#"<img src="/images/king.png" alt="King" class="piece" />"#,
+                ),
+            };
+
+            // If the cell is a corner, you can add specific styles or content for corners
+            let corner_class = if cell.is_corner {" corner-cell" } else { "" };
+
+            // If the cell is a throne, you can add specific styles or content for corners
+            let throne_class = if cell.is_throne {" throne-cell" } else { "" };
+
+            // If the cell is selected, you can add specific styles or content for corners
+            let selected_class = if cell.is_selected {" selected-cell" } else { "" };
+
+            let possible_class = if cell.is_possible_move {" possible-cell" } else { "" };
+
+            // Render the cell as an HTML table cell (<td>)
+            html.push_str(&format!(
+                r#"<td id="cell-{}-{}" class="{}{}{}{}{}" onclick="handleCellClick({}, {})">{}</td>"#,
+                row_idx, col_idx, class, corner_class, throne_class, selected_class, possible_class, row_idx, col_idx, content
+            ));
+            col_idx += 1;
+        }
+
+        // Add the row number as a right-side coordinate (no border)
+        html.push_str(&format!(
+            r#"<td class="coordinates" style="border: none;">{}</td>"#,
+            11 - row_idx
+        ));
+
+        html.push_str("</tr>"); // End the current row
+    }
+
+    // Add a bottom row for column coordinates (no border)
+    html.push_str("<tr>");
+    for col in 0..board[0].len() {
+        html.push_str(&format!(
+            r#"<td class="coordinates" style="border: none;">{}</td>"#,
+            (b'a' + col as u8) as char
+        ));
+    }
+    html.push_str("</tr>");
+
+    html.push_str("</table>");
+    html
+}
+
+fn render_brandubh_board_as_html(board: &Vec<Vec<BrandubhCell>>) -> String {
+    let mut html = String::from("<table>");
+
+    // Add rows with board cells and right-side coordinates
+    for (row_idx, row) in board.iter().enumerate() {
+        html.push_str("<tr>"); // Start a new row
+
+        let mut col_idx = 0;
+        for cell in row {
+            // Determine the class and content based on the cell type
+            let (class, content) = match cell.cell_type {
+                BrandubhCellType::Empty => ("empty", ""),
+                BrandubhCellType::Attacker => (
+                    "attacker",
+                    r#"<img src="/images/attacker.png" alt="Attacker" class="piece" />"#,
+                ),
+                BrandubhCellType::Defender => (
+                    "defender",
+                    r#"<img src="/images/defender.png" alt="Defender" class="piece" />"#,
+                ),
+                BrandubhCellType::King => (
                     "king",
                     r#"<img src="/images/king.png" alt="King" class="piece" />"#,
                 ),
