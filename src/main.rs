@@ -18,11 +18,25 @@ use warp::{
     cors,
 };
 
+mod tablut;
+use tablut::{GameState as TablutGameState, Cell as TablutCell, CellType as TablutCellType};
+
 mod hnefatafl;
-use hnefatafl::{GameState, Cell, CellType};
+use hnefatafl::{GameState as HnefataflGameState, Cell as HnefataflCell, CellType as HnefataflCellType};
+
 use rand::Rng;
 
+#[derive(Clone)]
+struct AppState {
+    pub games: Arc<RwLock<Vec<Option<GameVariant>>>>, // Use Option to mark ended games
+    players: Arc<RwLock<HashMap<String, String>>>, // Maps session IDs to usernames
+}
 
+#[derive(Clone)]
+enum GameVariant {
+    Tablut(TablutGameState),
+    Hnefatafl(HnefataflGameState),
+}
 
 #[derive(Deserialize)]
 struct CellClick {
@@ -30,11 +44,26 @@ struct CellClick {
     col: usize,
 }
 
-#[derive(Clone)]
-struct AppState {
-    pub games: Arc<RwLock<Vec<Option<GameState>>>>, // Use Option to mark ended games
-    players: Arc<RwLock<HashMap<String, String>>>, // Maps session IDs to usernames
+// Example implementation of methods to manipulate AppState
+impl AppState {
+    pub async fn add_game(&self, game: GameVariant) {
+        let mut games = self.games.write().await;
+        games.push(Some(game));
+    }
+    
+    pub async fn end_game(&self, game_index: usize) {
+        let mut games = self.games.write().await; // Await the write lock
+        if let Some(game) = games.get_mut(game_index) {
+            *game = None; // Mark the game as ended
+        }
+    }
+
+    pub async fn get_game(&self, game_index: usize) -> Option<GameVariant> {
+        let games = self.games.read().await; // Await the read lock
+        games.get(game_index).cloned().flatten()
+    }
 }
+
 
 #[derive(Debug)]
 struct MissingUsername;
@@ -215,7 +244,7 @@ async fn main() {
         .and_then(|state: AppState| async move {
             let mut games = state.games.write().await;
             let id = generate_random_id();
-            let game = GameState::new(id);
+            let game = GameVariant::Tablut(TablutGameState::new(id));
             games.push(Some(game)); // Store the new game
 
             // Redirect to the new game page
@@ -234,10 +263,10 @@ async fn main() {
         .and(state_filter.clone())
         .and_then(|id: usize, state: AppState| async move {
             let mut games = state.games.write().await;
-            let game = GameState::new(id);
-            let board_html = render_board_as_html(&game.board);
+            let game = TablutGameState::new(id);
+            let board_html = render_tablut_board_as_html(&game.board);
             let board_message = game.board_message.clone();        
-            games.push(Some(game)); // Store the new game
+            games.push(Some(GameVariant::Tablut(game))); // Store the new game
 
             // Read the HTML template from file
             let template_path = "templates/game.html";
@@ -268,7 +297,14 @@ async fn main() {
         .and(state_filter.clone())
         .and_then(|game_id: usize, state: AppState| async move {
             let games = state.games.read().await;
-            if games.iter().any(|game| game.as_ref().map_or(false, |g| g.id == game_id)) {
+
+            // Iterate over all game variants and check for the ID
+            if games.iter().any(|game_option| {
+                game_option.as_ref().map_or(false, |game_variant| match game_variant {
+                    GameVariant::Tablut(game) => game.id == game_id,
+                    GameVariant::Hnefatafl(game) => game.id == game_id,
+                })
+            }) {
                 let response = warp::http::Response::builder()
                     .status(302)
                     .header("Location", format!("/game/{}", game_id))
@@ -279,6 +315,7 @@ async fn main() {
                 Err(warp::reject::not_found())
             }
         });
+
 
     // Create a broadcast channel for board updates
     let board_updates_tx = Arc::new(broadcast::channel::<String>(100).0);
@@ -311,54 +348,69 @@ async fn main() {
         .and_then(
             |click: CellClick, state: AppState, board_updates_tx: Arc<broadcast::Sender<String>>| async move {
                 let mut games = state.games.write().await;
-                if let Some(game) = games.last_mut().and_then(Option::as_mut) {
-                    match game.process_click(click.row, click.col) {
-                        Ok(_) => {
-                            let board_html = render_board_as_html(&game.board);
-                            let board_message = game.board_message.clone();
 
-                            // Broadcast the new board state
-                            let update = serde_json::to_string(&serde_json::json!({
-                                "board_html": board_html,
-                                "board_message": board_message,
-                            }))
-                            .unwrap();
-                            let _ = board_updates_tx.send(update); // Ignore errors if no subscribers
+                // Iterate over all games to find the one to process the click
+                for game_option in games.iter_mut() {
+                    if let Some(game_variant) = game_option {
+                        // Define board variables and process click
+                        let (board_html, board_message, process_result) = match game_variant {
+                            GameVariant::Tablut(game) => {
+                                let process_result = game.process_click(click.row, click.col);
+                                let board_html = render_tablut_board_as_html(&game.board);
+                                (board_html, game.board_message.clone(), process_result)
+                            }
+                            GameVariant::Hnefatafl(game) => {
+                                let process_result = game.process_click(click.row, click.col);
+                                let board_html = render_hnefatafl_board_as_html(&game.board);
+                                (board_html, game.board_message.clone(), process_result)
+                            }
+                        };
 
-                            Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
-                                "success": true,
-                                "board_html": board_html,
-                                "board_message": board_message,
-                            })))
-                        }
-                        Err(error_message) => {
-                            let board_html = render_board_as_html(&game.board);
-                            let board_message = game.board_message.clone();
+                        // Handle the result of the click processing
+                        match process_result {
+                            Ok(_) => {
+                                // Broadcast the new board state
+                                let update = serde_json::to_string(&serde_json::json!({
+                                    "board_html": board_html,
+                                    "board_message": board_message,
+                                }))
+                                .unwrap();
+                                let _ = board_updates_tx.send(update); // Ignore errors if no subscribers
 
-                            // Broadcast the new board state even if there's an error
-                            let update = serde_json::to_string(&serde_json::json!({
-                                "board_html": board_html,
-                                "board_message": board_message,
-                            }))
-                            .unwrap();
-                            let _ = board_updates_tx.send(update); // Ignore errors if no subscribers
+                                return Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+                                    "success": true,
+                                    "board_html": board_html,
+                                    "board_message": board_message,
+                                })));
+                            }
+                            Err(error_message) => {
+                                // Broadcast the new board state even if there's an error
+                                let update = serde_json::to_string(&serde_json::json!({
+                                    "board_html": board_html,
+                                    "board_message": board_message,
+                                }))
+                                .unwrap();
+                                let _ = board_updates_tx.send(update); // Ignore errors if no subscribers
 
-                            Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
-                                "success": false,
-                                "error": error_message,
-                                "board_html": board_html,
-                                "board_message": board_message,
-                            })))
+                                return Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+                                    "success": false,
+                                    "error": error_message,
+                                    "board_html": board_html,
+                                    "board_message": board_message,
+                                })));
+                            }
                         }
                     }
-                } else {
-                    Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
-                        "success": false,
-                        "error": "No active game",
-                        })))
                 }
+
+                // If no game could process the click
+                Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+                    "success": false,
+                    "error": "No active game found",
+                })))
             },
         );
+
 
     // Endpoint: Make a move
     let make_move = warp::path("move")
@@ -367,15 +419,49 @@ async fn main() {
         .and(state_filter.clone())
         .and_then(|move_request: MoveRequest, state: AppState| async move {
             let mut games = state.games.write().await;
-            if let Some(Some(game)) = games.get_mut(move_request.game_id) {
-                match game.make_move(move_request.from, move_request.to) {
-                    Ok(_) => Ok::<_, warp::Rejection>(warp::reply::json(&game)),
-                    Err(e) => Ok::<_, warp::Rejection>(warp::reply::json(&e)),
+
+            // Iterate over all games to find the one to process the move
+            for game_option in games.iter_mut() {
+                if let Some(game_variant) = game_option {
+                    // Match the game type and check the ID
+                    match game_variant {
+                        GameVariant::Tablut(game) if game.id == move_request.game_id => {
+                            return match game.make_move(move_request.from, move_request.to) {
+                                Ok(_) => Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+                                    "success": true,
+                                    "game_state": game,
+                                }))),
+                                Err(e) => Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+                                    "success": false,
+                                    "error": e,
+                                }))),
+                            };
+                        }
+                        GameVariant::Hnefatafl(game) if game.id == move_request.game_id => {
+                            return match game.make_move(move_request.from, move_request.to) {
+                                Ok(_) => Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+                                    "success": true,
+                                    "game_state": game,
+                                }))),
+                                Err(e) => Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+                                    "success": false,
+                                    "error": e,
+                                }))),
+                            };
+                        }
+                        _ => continue,
+                    }
                 }
-            } else {
-                Ok::<_, warp::Rejection>(warp::reply::json(&"Game not found or ended"))
             }
+
+            // If no matching game was found
+            Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+                "success": false,
+                "error": "Game not found or ended"
+            })))
         });
+
+
     
     // Endpoint: Refresh the board
     let refresh_board = warp::path("refresh-board")
@@ -383,21 +469,36 @@ async fn main() {
         .and(state_filter.clone())
         .and_then(|state: AppState| async move {
             let games = state.games.read().await;
-            if let Some(Some(game)) = games.last() {
-                let board_html = render_board_as_html(&game.board);
-                let board_message = game.board_message.clone();
-                Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
-                    "success": true,
-                    "board_html": board_html,
-                    "board_message": board_message,
-                })))
-            } else {
-                Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
-                    "success": false,
-                    "error": "No active game"
-                })))
+
+            // Find the last active game
+            for game_option in games.iter().rev() {
+                if let Some(game_variant) = game_option {
+                    let (board_html, board_message) = match game_variant {
+                        GameVariant::Tablut(game) => (
+                            render_tablut_board_as_html(&game.board),
+                            game.board_message.clone(),
+                        ),
+                        GameVariant::Hnefatafl(game) => (
+                            render_hnefatafl_board_as_html(&game.board),
+                            game.board_message.clone(),
+                        ),
+                    };
+
+                    return Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+                        "success": true,
+                        "board_html": board_html,
+                        "board_message": board_message,
+                    })));
+                }
             }
+
+            // If no active game was found
+            Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+                "success": false,
+                "error": "No active game",
+            })))
         });
+
 
 
     // Endpoint: Continue the last game
@@ -415,41 +516,41 @@ async fn main() {
     });
 
     // Endpoint: List all games
-    let list_games = warp::path("list")
-        .and(warp::get())  
-        .and(state_filter.clone())
-        .and_then(|state: AppState| async move {
-            let games = state.games.write().await;
-            let game_list: Vec<(usize, String)> = games
-                .iter()
-                .enumerate()
-                .filter_map(|(id, game)| {
-                    game.as_ref().map(|g| {
-                        let status = if g.game_over {
-                            format!("Game over - Winner: {:?}", g.winner)
-                        } else {
-                            format!("In progress - Current turn: {:?}", g.current_turn)
-                        };
-                        (id, status)
-                    })
-                })
-                .collect();
-            Ok::<_, warp::Rejection>(warp::reply::json(&game_list))
-        });
+    // let list_games = warp::path("list")
+    //     .and(warp::get())  
+    //     .and(state_filter.clone())
+    //     .and_then(|state: AppState| async move {
+    //         let games = state.games.write().await;
+    //         let game_list: Vec<(usize, String)> = games
+    //             .iter()
+    //             .enumerate()
+    //             .filter_map(|(id, game)| {
+    //                 game.as_ref().map(|g| {
+    //                     let status = if g.game_over {
+    //                         format!("Game over - Winner: {:?}", g.winner)
+    //                     } else {
+    //                         format!("In progress - Current turn: {:?}", g.current_turn)
+    //                     };
+    //                     (id, status)
+    //                 })
+    //             })
+    //             .collect();
+    //         Ok::<_, warp::Rejection>(warp::reply::json(&game_list))
+    //     });
 
     // Endpoint: Query a game state
-    let query_game = warp::path("query")
-        .and(warp::get())
-        .and(warp::path::param::<usize>()) // Accept game ID as a path parameter
-        .and(state_filter.clone())
-        .and_then(|game_id: usize, state: AppState| async move {
-            let games = state.games.write().await;
-            if let Some(Some(game)) = games.get(game_id) {
-                Ok::<_, warp::Rejection>(warp::reply::json(&game))
-            } else {
-                Ok::<_, warp::Rejection>(warp::reply::json(&"Game not found or ended"))
-            }
-        });
+    // let query_game = warp::path("query")
+    //     .and(warp::get())
+    //     .and(warp::path::param::<usize>()) // Accept game ID as a path parameter
+    //     .and(state_filter.clone())
+    //     .and_then(|game_id: usize, state: AppState| async move {
+    //         let games = state.games.write().await;
+    //         if let Some(Some(game)) = games.get(game_id) {
+    //             Ok::<_, warp::Rejection>(warp::reply::json(&game))
+    //         } else {
+    //             Ok::<_, warp::Rejection>(warp::reply::json(&"Game not found or ended"))
+    //         }
+    //     });
 
     // Endpoint: End a game session
     let end_game = warp::path("end")
@@ -474,8 +575,8 @@ async fn main() {
         .or(sign_out_post)
         .or(rules)
         .or(new_game)
-        .or(list_games)
-        .or(query_game)
+        // .or(list_games)
+        // .or(query_game)
         .or(end_game)
         .or(make_move)
         .or(continue_game)
@@ -501,7 +602,7 @@ struct MoveRequest {
 
 
 /// Helper function to render the board as an HTML table
-fn render_board_as_html(board: &Vec<Vec<Cell>>) -> String {
+fn render_tablut_board_as_html(board: &Vec<Vec<TablutCell>>) -> String {
     let mut html = String::from("<table>");
 
     // Add rows with board cells and right-side coordinates
@@ -512,16 +613,85 @@ fn render_board_as_html(board: &Vec<Vec<Cell>>) -> String {
         for cell in row {
             // Determine the class and content based on the cell type
             let (class, content) = match cell.cell_type {
-                CellType::Empty => ("empty", ""),
-                CellType::Attacker => (
+                TablutCellType::Empty => ("empty", ""),
+                TablutCellType::Attacker => (
                     "attacker",
                     r#"<img src="/images/attacker.png" alt="Attacker" class="piece" />"#,
                 ),
-                CellType::Defender => (
+                TablutCellType::Defender => (
                     "defender",
                     r#"<img src="/images/defender.png" alt="Defender" class="piece" />"#,
                 ),
-                CellType::King => (
+                TablutCellType::King => (
+                    "king",
+                    r#"<img src="/images/king.png" alt="King" class="piece" />"#,
+                ),
+            };
+
+            // If the cell is a corner, you can add specific styles or content for corners
+            let corner_class = if cell.is_corner {" corner-cell" } else { "" };
+
+            // If the cell is a throne, you can add specific styles or content for corners
+            let throne_class = if cell.is_throne {" throne-cell" } else { "" };
+
+            // If the cell is selected, you can add specific styles or content for corners
+            let selected_class = if cell.is_selected {" selected-cell" } else { "" };
+
+            let possible_class = if cell.is_possible_move {" possible-cell" } else { "" };
+
+            // Render the cell as an HTML table cell (<td>)
+            html.push_str(&format!(
+                r#"<td id="cell-{}-{}" class="{}{}{}{}{}" onclick="handleCellClick({}, {})">{}</td>"#,
+                row_idx, col_idx, class, corner_class, throne_class, selected_class, possible_class, row_idx, col_idx, content
+            ));
+            col_idx += 1;
+        }
+
+        // Add the row number as a right-side coordinate (no border)
+        html.push_str(&format!(
+            r#"<td class="coordinates" style="border: none;">{}</td>"#,
+            11 - row_idx
+        ));
+
+        html.push_str("</tr>"); // End the current row
+    }
+
+    // Add a bottom row for column coordinates (no border)
+    html.push_str("<tr>");
+    for col in 0..board[0].len() {
+        html.push_str(&format!(
+            r#"<td class="coordinates" style="border: none;">{}</td>"#,
+            (b'a' + col as u8) as char
+        ));
+    }
+    html.push_str("</tr>");
+
+    html.push_str("</table>");
+    html
+}
+
+/// Helper function to render the board as an HTML table
+fn render_hnefatafl_board_as_html(board: &Vec<Vec<HnefataflCell>>) -> String {
+    let mut html = String::from("<table>");
+
+    // Add rows with board cells and right-side coordinates
+    for (row_idx, row) in board.iter().enumerate() {
+        html.push_str("<tr>"); // Start a new row
+
+        let mut col_idx = 0;
+        for cell in row {
+            // Determine the class and content based on the cell type
+            let (class, content) = match cell.cell_type {
+                HnefataflCellType::Empty => ("empty", ""),
+                HnefataflCellType::Attacker => (
+                    "attacker",
+                    r#"<img src="/images/attacker.png" alt="Attacker" class="piece" />"#,
+                ),
+                HnefataflCellType::Defender => (
+                    "defender",
+                    r#"<img src="/images/defender.png" alt="Defender" class="piece" />"#,
+                ),
+                HnefataflCellType::King => (
                     "king",
                     r#"<img src="/images/king.png" alt="King" class="piece" />"#,
                 ),
