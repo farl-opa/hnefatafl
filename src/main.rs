@@ -47,26 +47,6 @@ struct CellClick {
     col: usize,
 }
 
-// Example implementation of methods to manipulate AppState
-impl AppState {
-    pub async fn add_game(&self, game: GameVariant) {
-        let mut games = self.games.write().await;
-        games.push(Some(game));
-    }
-    
-    pub async fn end_game(&self, game_index: usize) {
-        let mut games = self.games.write().await; // Await the write lock
-        if let Some(game) = games.get_mut(game_index) {
-            *game = None; // Mark the game as ended
-        }
-    }
-
-    pub async fn get_game(&self, game_index: usize) -> Option<GameVariant> {
-        let games = self.games.read().await; // Await the read lock
-        games.get(game_index).cloned().flatten()
-    }
-}
-
 
 #[derive(Debug)]
 struct MissingUsername;
@@ -317,7 +297,7 @@ async fn main() {
     .and(warp::get())
     .and(state_filter.clone())
     .and_then(|id: usize, state: AppState| async move {
-        let mut games = state.games.write().await;
+        let games = state.games.write().await;
 
         let mut board_html = String::new();
         let mut board_message = String::new();
