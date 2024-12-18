@@ -34,7 +34,7 @@ struct AppState {
     players: Arc<RwLock<HashMap<String, String>>>, // Maps session IDs to usernames
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum GameVariant {
     Tablut(TablutGameState),
     Hnefatafl(HnefataflGameState),
@@ -408,9 +408,8 @@ async fn main() {
             }))
         });
 
-
-    // Endpoint to handle cell clicks
-    let cell_click = warp::path("cell-click")
+    // Endpoint to handle cell clicks for a specific game by ID
+    let cell_click = warp::path!("cell-click" / usize)
         .and(warp::post())
         .and(warp::body::json())
         .and(state_filter.clone())
@@ -419,13 +418,22 @@ async fn main() {
             move || board_updates_tx.clone()
         }))
         .and_then(
-            |click: CellClick, state: AppState, board_updates_tx: Arc<broadcast::Sender<String>>| async move {
+            |game_id: usize, click: CellClick, state: AppState, board_updates_tx: Arc<broadcast::Sender<String>>| async move {
                 let mut games = state.games.write().await;
 
-                // Iterate over all games to find the one to process the click
-                for game_option in games.iter_mut() {
+                // Find the game with the matching ID
+                if let Some(game_option) = games.iter_mut().find(|game_option| {
                     if let Some(game_variant) = game_option {
-                        // Define board variables and process click
+                        match game_variant {
+                            GameVariant::Tablut(game) => game.id == game_id,
+                            GameVariant::Hnefatafl(game) => game.id == game_id,
+                            GameVariant::Brandubh(game) => game.id == game_id,
+                        }
+                    } else {
+                        false
+                    }
+                }) {
+                    if let Some(game_variant) = game_option {
                         let (board_html, board_message, process_result) = match game_variant {
                             GameVariant::Tablut(game) => {
                                 let process_result = game.process_click(click.row, click.col);
@@ -484,7 +492,7 @@ async fn main() {
                 // If no game could process the click
                 Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
                     "success": false,
-                    "error": "No active game found",
+                    "error": "Game not found or inactive",
                 })))
             },
         );
@@ -540,114 +548,6 @@ async fn main() {
         });
 
 
-    
-    // Endpoint: Refresh the board
-    let refresh_board = warp::path("refresh-board")
-        .and(warp::get())
-        .and(state_filter.clone())
-        .and_then(|state: AppState| async move {
-            let games = state.games.read().await;
-
-            // Find the last active game
-            for game_option in games.iter().rev() {
-                if let Some(game_variant) = game_option {
-                    let (board_html, board_message) = match game_variant {
-                        GameVariant::Tablut(game) => (
-                            render_tablut_board_as_html(&game.board),
-                            game.board_message.clone(),
-                        ),
-                        GameVariant::Hnefatafl(game) => (
-                            render_hnefatafl_board_as_html(&game.board),
-                            game.board_message.clone(),
-                        ),
-                        GameVariant::Brandubh(game) => (
-                            render_brandubh_board_as_html(&game.board),
-                            game.board_message.clone(),
-                        ),
-                    };
-
-                    return Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
-                        "success": true,
-                        "board_html": board_html,
-                        "board_message": board_message,
-                    })));
-                }
-            }
-
-            // If no active game was found
-            Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
-                "success": false,
-                "error": "No active game",
-            })))
-        });
-
-
-
-    // Endpoint: Continue the last game
-    let continue_game = warp::path("continue")
-    .and(warp::post())
-    .and(state_filter.clone())
-    .and_then(|state: AppState| async move {
-        let games = state.games.write().await;
-        let response = if let Some(Some(_game)) = games.last() {
-            warp::reply::html("Continuing the last game...")
-        } else {
-            warp::reply::html("No game to continue!")
-        };
-        Ok::<_, warp::Rejection>(response)
-    });
-
-    // Endpoint: List all games
-    // let list_games = warp::path("list")
-    //     .and(warp::get())  
-    //     .and(state_filter.clone())
-    //     .and_then(|state: AppState| async move {
-    //         let games = state.games.write().await;
-    //         let game_list: Vec<(usize, String)> = games
-    //             .iter()
-    //             .enumerate()
-    //             .filter_map(|(id, game)| {
-    //                 game.as_ref().map(|g| {
-    //                     let status = if g.game_over {
-    //                         format!("Game over - Winner: {:?}", g.winner)
-    //                     } else {
-    //                         format!("In progress - Current turn: {:?}", g.current_turn)
-    //                     };
-    //                     (id, status)
-    //                 })
-    //             })
-    //             .collect();
-    //         Ok::<_, warp::Rejection>(warp::reply::json(&game_list))
-    //     });
-
-    // Endpoint: Query a game state
-    // let query_game = warp::path("query")
-    //     .and(warp::get())
-    //     .and(warp::path::param::<usize>()) // Accept game ID as a path parameter
-    //     .and(state_filter.clone())
-    //     .and_then(|game_id: usize, state: AppState| async move {
-    //         let games = state.games.write().await;
-    //         if let Some(Some(game)) = games.get(game_id) {
-    //             Ok::<_, warp::Rejection>(warp::reply::json(&game))
-    //         } else {
-    //             Ok::<_, warp::Rejection>(warp::reply::json(&"Game not found or ended"))
-    //         }
-    //     });
-
-    // Endpoint: End a game session
-    let end_game = warp::path("end")
-        .and(warp::post())
-        .and(warp::path::param::<usize>()) // Accept game ID as a path parameter
-        .and(state_filter.clone())
-        .and_then(|game_id: usize, state: AppState| async move {
-            let mut games = state.games.write().await;
-            if let Some(game) = games.get_mut(game_id) {
-                *game = None; // Mark the game as ended
-                Ok::<_, warp::Rejection>(warp::reply::json(&"Game ended successfully"))
-            } else {
-                Ok::<_, warp::Rejection>(warp::reply::json(&"Game not found"))
-            }
-        });
 
     // Combine all routes
     let routes = static_files
@@ -657,13 +557,8 @@ async fn main() {
         .or(sign_out_post)
         .or(rules)
         .or(new_game)
-        // .or(list_games)
-        // .or(query_game)
-        .or(end_game)
         .or(make_move)
-        .or(continue_game)
         .or(cell_click)
-        .or(refresh_board)
         .or(board_updates)
         .or(join_game_by_id)
         .or(redirect_to_game)
