@@ -28,14 +28,15 @@ mod brandubh;
 use brandubh::{GameState as BrandubhGameState, Cell as BrandubhCell, CellType as BrandubhCellType};
 use rand::Rng;
 
+
 #[derive(Clone)]
-struct AppState {
+pub struct AppState {
     pub games: Arc<RwLock<Vec<Option<GameVariant>>>>, // Use Option to mark ended games
-    players: Arc<RwLock<HashMap<String, String>>>, // Maps session IDs to usernames
+    pub players: Arc<RwLock<HashMap<String, String>>>, // Maps session IDs to usernames
 }
 
 #[derive(Clone, Debug)]
-enum GameVariant {
+pub enum GameVariant {
     Tablut(TablutGameState),
     Hnefatafl(HnefataflGameState),
     Brandubh(BrandubhGameState),
@@ -231,7 +232,7 @@ async fn main() {
             html(template)
         });
     
-    // Endpoint: Create a new game and redirect to it
+    // Endpoint: Create a new hnefataflgame and redirect to it
     let hnefatafl_redirect = warp::path("hnefatafl_redirect")
         .and(warp::post())
         .and(state_filter.clone())
@@ -251,7 +252,7 @@ async fn main() {
             Ok::<_, warp::Rejection>(response)
         });
 
-    // Endpoint: Create a new game and redirect to it
+    // Endpoint: Create a new tablut game and redirect to it
     let tablut_redirect = warp::path("tablut_redirect")
         .and(warp::post())
         .and(state_filter.clone())
@@ -271,7 +272,7 @@ async fn main() {
             Ok::<_, warp::Rejection>(response)
         });
 
-    // Endpoint: Create a new game and redirect to it
+    // Endpoint: Create a new brandubh game and redirect to it
     let brandubh_redirect = warp::path("brandubh_redirect")
         .and(warp::post())
         .and(state_filter.clone())
@@ -315,6 +316,7 @@ async fn main() {
 
             let mut board_html = String::new();
             let mut board_message = String::new();
+            let mut game_title = String::new();
 
             let found_game = games.iter().any(|game_option| {
                 game_option.as_ref().map_or(false, |game_variant| match game_variant {
@@ -322,6 +324,7 @@ async fn main() {
                         if game.id == id {
                             board_html = render_tablut_board_as_html(&game.board);
                             board_message = game.board_message.clone();
+                            game_title = game.game_title.clone();
                             true
                         } else {
                             false
@@ -331,6 +334,7 @@ async fn main() {
                         if game.id == id {
                             board_html = render_hnefatafl_board_as_html(&game.board);
                             board_message = game.board_message.clone();
+                            game_title = game.game_title.clone();
                             true
                         } else {
                             false
@@ -340,6 +344,7 @@ async fn main() {
                         if game.id == id {
                             board_html = render_brandubh_board_as_html(&game.board);
                             board_message = game.board_message.clone();
+                            game_title = game.game_title.clone();
                             true
                         } else {
                             false
@@ -355,6 +360,7 @@ async fn main() {
 
                 // Replace placeholders in the template with dynamic content
                 let response = template
+                    .replace("{game_title}", &game_title)
                     .replace("{board_message}", &board_message)
                     .replace("{board_html}", &board_html)
                     .replace("{id}", &id.to_string());

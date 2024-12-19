@@ -62,6 +62,7 @@ pub struct GameState {
     pub click_count: u32,      // Number of clicks
     pub from: (usize, usize),  // From position
     pub board_message: String, // Message to display on the board
+    pub game_title: String,
     pub last_click: (usize, usize), // Last clicked cell
     pub id: usize,
 }
@@ -151,6 +152,7 @@ impl GameState {
             click_count: 1,
             from: (0, 0),
             board_message: "Current turn: Attacker".to_string(),
+            game_title:"Brandubh".to_string(),
             last_click: (0, 0),
             id: id,
         }

@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Choose your game mode</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -38,11 +37,10 @@
             display: block;
             text-align: left;
         }
-        .back-link {
+        form {
             margin-top: 20px;
-            margin-bottom: 20px;
         }
-        .back-button {
+        button {
             padding: 10px 20px;
             font-size: 16px;
             cursor: pointer;
@@ -51,6 +49,7 @@
 </head>
 <body>
     <div class="container">
+        <h1>Choose your game mode</h1>
         <form action="/hnefatafl_redirect" method="post">
             <button type="submit">Hnefatafl (11x11)</button>
         </form>

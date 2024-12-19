@@ -11,32 +11,52 @@
             flex-direction: column;
             align-items: center;
             justify-content: flex-start;
-            height: 100vh;
             margin: 0;
             text-align: center;
-            overflow: auto
+            overflow: auto;
         }
         .container {
             width: 100%;
-            max-width: 600px;
+            max-width: 1000px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .description {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 0 20px;
+        }
+        .columns {
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            gap: 20px;
+        }
+        .column {
+            flex: 1;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .left {
+            background-color: #f8f9fa; 
+        }
+        .right {
+            background-color: #f1f3f5; 
         }
         h1, h2 {
             margin-bottom: 20px;
         }
-        p, ul {
-            text-align: center;
-            margin-bottom: 1.2em;
-            max-width: 400px;
-            margin-left: auto;
-            margin-right: auto;
-        }
         ul {
             list-style-position: inside;
             padding: 0;
+            margin: 0;
+            margin-bottom: 1.2em;
+            text-align: left;
         }
         ul li {
-            display: block;
-            text-align: left;
+            margin-bottom: 10px;
         }
         .back-link {
             margin-top: 20px;
@@ -51,61 +71,65 @@
 </head>
 <body>
     <div class="container">
-        <h1>Hnefatafl Game Rules</h1>
+        <div class="header">
+            <h1>Hnefatafl Game Rules</h1>
+        </div>
+        <div class="description">
             <p>Hnefatafl is an ancient Norse strategy board game. Two sides compete in an asymmetrical battle. The Defenders protect their King, while the Attackers attempt to capture him.</p>
-            
-            <h2>Variants</h2>
-            <ul>
-                <li><strong>Hnefatafl:</strong> Played on an 11x11 board.</li>
-                <li><strong>Tablut:</strong> Played on a 9x9 board.</li>
-                <li><strong>Brandubh:</strong> Played on a 7x7 board.</li>
-            </ul>
-            <h2>Objective</h2>
-            <ul>
-                <li><strong>Defenders:</strong> Help the King escape to one of the four corners of the board.</li>
-                <li><strong>Attackers:</strong> Capture the King by surrounding him on all four sides.</li>
-            </ul>
-            
-            <h2>Board Setup</h2>
-            <ul>
-                <li>The King starts on the central square (the Throne).</li>
-                <li>Defenders are symmetrically placed around the King.</li>
-                <li>Attackers are placed on the board edges, forming a cross-like pattern.</li>
-            </ul>
-            
-            <h2>Movement</h2>
-            <ul>
-                <li>All pieces move horizontally or vertically, like a rook in chess.</li>
-                <li>Pieces cannot move through or land on other pieces.</li>
-                <li>Only the King may occupy the Throne or escape to a corner square.</li>
-                <li>All pieces can move through the throne if it is not occupied.</li>
-            </ul>
-            
-            <h2>Capturing</h2>
-            <ul>
-                <li>A piece is captured by being sandwiched between two opposing pieces.</li>
-                <li>In Hnefatalf (11x11) and Tablut (9x9), the King is captured by surrounding him on all four sides.</li>
-                <li>In Brandubh (7x7), the King is captured by surrounding him on two opposite sides (like any other piece).</li>
-                <li>If adjacent to the Throne or an edge, the King is captured when surrounded on the remaining three sides.</li>
-            </ul>
-            
-            <h2>Reinforced Corners Rule</h2>
-            <ul>
-                <li>The Throne and corners can act as allies for capturing enemy pieces. For example, if an Attacker is sandwiched between a Defender and a corner, the Attacker is captured.</li>
-                <li>When the Throne is occupied it can only act as an ally for capturing the Attacker's pieces, when the Throne is not occupied it can act as an ally for captures for both sides.</li>
-                <li>In Brandubh (7x7) the Throne does not act as an ally for capturing opposition pieces.</li>
-            </ul>
-            <h2>Game End</h2>
-            <ul>
-                <li>The Defenders win if the King escapes to a corner.</li>
-                <li>The Attackers win if the King is captured.</li>
-            </ul>
-            
-            <div class="back-link">
-                <form action="/main" method="get">
-                    <button type="submit" class="back-button">Back to Home</button>
-                </form>
+        </div>
+        <div class="columns">
+            <div class="column left">
+                <h2>Variants</h2>
+                <ul>
+                    <li><strong>Hnefatafl:</strong> Played on an 11x11 board.</li>
+                    <li><strong>Tablut:</strong> Played on a 9x9 board.</li>
+                    <li><strong>Brandubh:</strong> Played on a 7x7 board.</li>
+                </ul>
+                <h2>Objective</h2>
+                <ul>
+                    <li><strong>Defenders:</strong> Help the King escape to one of the four corners of the board.</li>
+                    <li><strong>Attackers:</strong> Capture the King by surrounding him on all four sides.</li>
+                </ul>
+                <h2>Board Setup</h2>
+                <ul>
+                    <li>The King starts on the central square (the Throne).</li>
+                    <li>Defenders are symmetrically placed around the King.</li>
+                    <li>Attackers are placed on the board edges, forming a cross-like pattern.</li>
+                </ul>
+                <h2>Movement</h2>
+                <ul>
+                    <li>All pieces move horizontally or vertically, like a rook in chess.</li>
+                    <li>Pieces cannot move through or land on other pieces.</li>
+                    <li>Only the King may occupy the Throne or escape to a corner square.</li>
+                    <li>All pieces can move through the throne if it is not occupied.</li>
+                </ul>
             </div>
+            <div class="column right">
+                <h2>Capturing</h2>
+                <ul>
+                    <li>A piece is captured by being sandwiched between two opposing pieces.</li>
+                    <li>In Hnefatalf (11x11) and Tablut (9x9), the King is captured by surrounding him on all four sides.</li>
+                    <li>In Brandubh (7x7), the King is captured by surrounding him on two opposite sides (like any other piece).</li>
+                    <li>If adjacent to the Throne or an edge, the King is captured when surrounded on the remaining three sides.</li>
+                </ul>
+                <h2>Reinforced Corners Rule</h2>
+                <ul>
+                    <li>The Throne and corners can act as allies for capturing enemy pieces. For example, if an Attacker is sandwiched between a Defender and a corner, the Attacker is captured.</li>
+                    <li>When the Throne is occupied it can only act as an ally for capturing the Attacker's pieces, when the Throne is not occupied it can act as an ally for captures for both sides.</li>
+                    <li>In Brandubh (7x7) the Throne does not act as an ally for capturing opposition pieces.</li>
+                </ul>
+                <h2>Game End</h2>
+                <ul>
+                    <li>The Defenders win if the King escapes to a corner.</li>
+                    <li>The Attackers win if the King is captured.</li>
+                </ul>
+            </div>
+        </div>
+        <div class="back-link">
+            <form action="/main" method="get">
+                <button type="submit" class="back-button">Back to Home</button>
+            </form>
+        </div>
     </div>
 </body>
 </html>
