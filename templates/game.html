@@ -52,7 +52,7 @@
     </style>
     <script>
         // Establish an SSE connection
-        const eventSource = new EventSource('/board-updates');
+        const eventSource = new EventSource('/board-updates/{id}');
 
         eventSource.onmessage = function(event) {
             const data = JSON.parse(event.data);

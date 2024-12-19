@@ -14,7 +14,7 @@ use warp::{
     http::{Response, Method, header::SET_COOKIE},
     reject::Reject,
     reply::html,
-    sse::{Event, reply},
+    // sse::{Event, reply},
     cors,
 };
 
@@ -292,66 +292,78 @@ async fn main() {
         });
 
 
-    // Endpoint: Create a new game
+    // Dictionary to store broadcast channels for each game
+    let channels: Arc<RwLock<HashMap<usize, broadcast::Sender<String>>>> = Arc::new(RwLock::new(HashMap::new()));
+
+    // Endpoint to create a new game and its broadcast channel
     let new_game = warp::path!("game" / usize)
-    .and(warp::get())
-    .and(state_filter.clone())
-    .and_then(|id: usize, state: AppState| async move {
-        let games = state.games.write().await;
+        .and(warp::get())
+        .and(state_filter.clone())
+        .and({
+            let channels = channels.clone();
+            warp::any().map(move || channels.clone())
+        })
+        .and_then(|id: usize, state: AppState, channels: Arc<RwLock<HashMap<usize, broadcast::Sender<String>>>>| async move {
+            let mut channels = channels.write().await;
+            if !channels.contains_key(&id) {
+                // Create a new broadcast channel for this game ID
+                channels.insert(id, broadcast::channel::<String>(100).0);
+            }
 
-        let mut board_html = String::new();
-        let mut board_message = String::new();
+            // Find the game and return its initial state
+            let games = state.games.write().await;
 
-        // Iterate over all game variants and check for the ID
-        let found_game = games.iter().any(|game_option| {
-            game_option.as_ref().map_or(false, |game_variant| match game_variant {
-                GameVariant::Tablut(game) => {
-                    if game.id == id {
-                        board_html = render_tablut_board_as_html(&game.board);
-                        board_message = game.board_message.clone();
-                        true
-                    } else {
-                        false
+            let mut board_html = String::new();
+            let mut board_message = String::new();
+
+            let found_game = games.iter().any(|game_option| {
+                game_option.as_ref().map_or(false, |game_variant| match game_variant {
+                    GameVariant::Tablut(game) => {
+                        if game.id == id {
+                            board_html = render_tablut_board_as_html(&game.board);
+                            board_message = game.board_message.clone();
+                            true
+                        } else {
+                            false
+                        }
                     }
-                }
-                GameVariant::Hnefatafl(game) => {
-                    if game.id == id {
-                        board_html = render_hnefatafl_board_as_html(&game.board);
-                        board_message = game.board_message.clone();
-                        true
-                    } else {
-                        false
+                    GameVariant::Hnefatafl(game) => {
+                        if game.id == id {
+                            board_html = render_hnefatafl_board_as_html(&game.board);
+                            board_message = game.board_message.clone();
+                            true
+                        } else {
+                            false
+                        }
                     }
-                }
-                GameVariant::Brandubh(game) => {
-                    if game.id == id {
-                        board_html = render_brandubh_board_as_html(&game.board);
-                        board_message = game.board_message.clone();
-                        true
-                    } else {
-                        false
+                    GameVariant::Brandubh(game) => {
+                        if game.id == id {
+                            board_html = render_brandubh_board_as_html(&game.board);
+                            board_message = game.board_message.clone();
+                            true
+                        } else {
+                            false
+                        }
                     }
-                }
-            })
+                })
+            });
+
+            if found_game {
+                // Read the HTML template from file
+                let template_path = "templates/game.html";
+                let template = read_html_template(template_path).unwrap();
+
+                // Replace placeholders in the template with dynamic content
+                let response = template
+                    .replace("{board_message}", &board_message)
+                    .replace("{board_html}", &board_html)
+                    .replace("{id}", &id.to_string());
+
+                Ok::<_, warp::Rejection>(warp::reply::html(response))
+            } else {
+                Err(warp::reject::not_found())
+            }
         });
-
-        if found_game {
-            // Read the HTML template from file
-            let template_path = "templates/game.html";
-            let template = read_html_template(template_path).unwrap();
-
-            // Replace placeholders in the template with dynamic content
-            let response = template
-                .replace("{board_message}", &board_message)
-                .replace("{board_html}", &board_html)
-                .replace("{id}", &id.to_string());
-
-            Ok::<_, warp::Rejection>(warp::reply::html(response))
-        } else {
-            Err(warp::reject::not_found())
-        }
-    });
-
 
     // Endpoint: Join a game by IP
     let join_game_by_id = warp::path("join")
@@ -390,38 +402,45 @@ async fn main() {
         });
 
 
-    // Create a broadcast channel for board updates
-    let board_updates_tx = Arc::new(broadcast::channel::<String>(100).0);
-
-    let board_updates = warp::path("board-updates")
+    // Endpoint for board updates
+    let board_updates = warp::path!("board-updates" / usize)
         .and(warp::get())
         .and({
-            let board_updates_tx = board_updates_tx.clone();
-            warp::any().map(move || board_updates_tx.subscribe())
+            let channels = channels.clone();
+            warp::any().map(move || channels.clone())
         })
-        .map(|mut rx: broadcast::Receiver<String>| {
-            reply(warp::sse::keep_alive().stream(async_stream::stream! {
-                while let Ok(message) = rx.recv().await {
-                    yield Ok::<_, warp::Error>(Event::default()
-                        .data(message));
-                }
-            }))
-        });
+        .and_then(
+            |id: usize, channels: Arc<RwLock<HashMap<usize, broadcast::Sender<String>>>>| async move {
+                let channels = channels.read().await;
 
-    // Endpoint to handle cell clicks for a specific game by ID
+                if let Some(channel) = channels.get(&id) {
+                    let rx = channel.subscribe();
+                    Ok::<_, warp::Rejection>(warp::sse::reply(warp::sse::keep_alive().stream(async_stream::stream! {
+                        let mut rx = rx;
+                        while let Ok(message) = rx.recv().await {
+                            yield Ok::<_, warp::Error>(warp::sse::Event::default().data(message));
+                        }
+                    })))
+                } else {
+                Err(warp::reject::not_found())
+                }
+            },
+        );
+
+
+    // Endpoint to handle cell clicks
     let cell_click = warp::path!("cell-click" / usize)
         .and(warp::post())
         .and(warp::body::json())
         .and(state_filter.clone())
-        .and(warp::any().map({
-            let board_updates_tx = board_updates_tx.clone();
-            move || board_updates_tx.clone()
-        }))
+        .and({
+            let channels = channels.clone();
+            warp::any().map(move || channels.clone())
+        })
         .and_then(
-            |game_id: usize, click: CellClick, state: AppState, board_updates_tx: Arc<broadcast::Sender<String>>| async move {
+            |game_id: usize, click: CellClick, state: AppState, channels: Arc<RwLock<HashMap<usize, broadcast::Sender<String>>>>| async move {
                 let mut games = state.games.write().await;
 
-                // Find the game with the matching ID
                 if let Some(game_option) = games.iter_mut().find(|game_option| {
                     if let Some(game_variant) = game_option {
                         match game_variant {
@@ -452,16 +471,19 @@ async fn main() {
                             }
                         };
 
-                        // Handle the result of the click processing
                         match process_result {
                             Ok(_) => {
-                                // Broadcast the new board state
+                                // Broadcast the new board state to the game's channel
                                 let update = serde_json::to_string(&serde_json::json!({
                                     "board_html": board_html,
                                     "board_message": board_message,
                                 }))
                                 .unwrap();
-                                let _ = board_updates_tx.send(update); // Ignore errors if no subscribers
+
+                                let channels = channels.read().await;
+                                if let Some(channel) = channels.get(&game_id) {
+                                    let _ = channel.send(update); // Ignore errors if no subscribers
+                                }
 
                                 return Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
                                     "success": true,
@@ -470,13 +492,17 @@ async fn main() {
                                 })));
                             }
                             Err(error_message) => {
-                                // Broadcast the new board state even if there's an error
+                                // Broadcast the new board state to the game's channel
                                 let update = serde_json::to_string(&serde_json::json!({
                                     "board_html": board_html,
                                     "board_message": board_message,
                                 }))
                                 .unwrap();
-                                let _ = board_updates_tx.send(update); // Ignore errors if no subscribers
+
+                                let channels = channels.read().await;
+                                if let Some(channel) = channels.get(&game_id) {
+                                    let _ = channel.send(update); // Ignore errors if no subscribers
+                                }
 
                                 return Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
                                     "success": false,
