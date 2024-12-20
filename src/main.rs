@@ -636,7 +636,7 @@ fn render_tablut_board_as_html(board: &Vec<Vec<TablutCell>>) -> String {
                 ),
                 TablutCellType::King => (
                     "king",
-                    r#"<img src="/images/king.png" alt="King" class="piece" />"#,
+                    r#"<img src="/images/queen.png" alt="King" class="piece" />"#,
                 ),
             };
 
@@ -705,7 +705,7 @@ fn render_hnefatafl_board_as_html(board: &Vec<Vec<HnefataflCell>>) -> String {
                 ),
                 HnefataflCellType::King => (
                     "king",
-                    r#"<img src="/images/king.png" alt="King" class="piece" />"#,
+                    r#"<img src="/images/queen.png" alt="King" class="piece" />"#,
                 ),
             };
 
@@ -773,7 +773,7 @@ fn render_brandubh_board_as_html(board: &Vec<Vec<BrandubhCell>>) -> String {
                 ),
                 BrandubhCellType::King => (
                     "king",
-                    r#"<img src="/images/king.png" alt="King" class="piece" />"#,
+                    r#"<img src="/images/queen.png" alt="King" class="piece" />"#,
                 ),
             };
 
