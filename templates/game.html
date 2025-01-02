@@ -93,7 +93,7 @@
         eventSource.onmessage = function(event) {
             const data = JSON.parse(event.data);
             document.getElementById('board-container').innerHTML = data.board_html;
-            document.querySelector('h2').innerText = data.board_message;
+            document.querySelector('h3').innerText = data.board_message;
         };
 
         function handleCellClick(row, col) {
