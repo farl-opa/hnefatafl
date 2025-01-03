@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            height: 100vh;
+            margin: 0;
+            text-align: center;
+            overflow: auto
+        }
+        .container {
+            width: 100%;
+            max-width: 600px;
+        }
+        h1, h2 {
+            margin-bottom: 20px;
+        }
+        p, ul {
+            text-align: center;
+            margin-bottom: 1.2em;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        ul {
+            list-style-position: inside;
+            padding: 0;
+        }
+        ul li {
+            display: block;
+            text-align: left;
+        }
+        form {
+            margin-top: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Choose your game mode</h1>
+        <form action="/hnefatafl_redirect_online" method="post">
+            <button type="submit">Hnefatafl (11x11)</button>
+        </form>
+        <form action="/tablut_redirect_online" method="post">
+            <button type="submit">Tablut (9x9)</button>
+        </form>
+        <form action="/brandubh_redirect_online" method="post">
+            <button type="submit">Brandubh (7x7)</button> 
+    </div>
+</body>
+</html>

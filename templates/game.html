@@ -7,6 +7,10 @@
     <h1 style="text-align: center;">{game_title}</h1>
     <h2 style="text-align: center;">Game ID: {id}</h2>
     <h3 style="text-align: center;">{board_message}</h3>
+    <h4>Players Online</h4>
+            <div class="player-list">
+                {players_html}
+            </div>
     <style>
         table {
             border-collapse: collapse;
@@ -89,24 +93,51 @@
     <script>
         // Establish an SSE connection
         const eventSource = new EventSource('/board-updates/{id}');
-
+    
         eventSource.onmessage = function(event) {
             const data = JSON.parse(event.data);
             document.getElementById('board-container').innerHTML = data.board_html;
             document.querySelector('h3').innerText = data.board_message;
         };
-
+    
+        // Retrieve the session_id from the cookies
+        const session_id = getSessionId();
+    
+        function getSessionId() {
+            // Retrieve the session_id from cookies
+            const cookies = document.cookie.split(';');
+            const sessionCookie = cookies.find(cookie => cookie.trim().startsWith('session_id='));
+            return sessionCookie ? sessionCookie.split('=')[1] : '';
+        }
+    
         function handleCellClick(row, col) {
-            fetch('/cell-click/{id}', {
+            if (!session_id) {
+                console.error('Session ID is missing. Ensure the player is logged in.');
+                return;
+            }
+    
+            // Include the session_id in the fetch request and ensure cookies are sent
+            fetch(`/cell-click/{id}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ row: row, col: col })
+                body: JSON.stringify({
+                    row: row,
+                    col: col,
+                    session_id: session_id // Include session_id in the request body
+                }),
+                credentials: 'same-origin' // Ensures cookies are sent with the request
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log(data);
             })
             .catch(error => console.error('Error:', error));
         }
     </script>
+    
+    
 
 </head>
 <body>

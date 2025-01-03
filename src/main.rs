@@ -28,6 +28,11 @@ mod brandubh;
 use brandubh::{GameState as BrandubhGameState, Cell as BrandubhCell, CellType as BrandubhCellType};
 use rand::Rng;
 
+#[derive(Clone, Copy, Debug)]
+pub enum GameMode {
+    Local,
+    Online,
+}
 
 #[derive(Clone)]
 pub struct AppState {
@@ -37,15 +42,17 @@ pub struct AppState {
 
 #[derive(Clone, Debug)]
 pub enum GameVariant {
-    Tablut(TablutGameState),
-    Hnefatafl(HnefataflGameState),
-    Brandubh(BrandubhGameState),
+    Tablut(TablutGameState, GameMode),
+    Hnefatafl(HnefataflGameState, GameMode),
+    Brandubh(BrandubhGameState, GameMode),
 }
+
 
 #[derive(Deserialize)]
 struct CellClick {
     row: usize,
     col: usize,
+    session_id: String
 }
 
 
@@ -221,11 +228,22 @@ async fn main() {
             warp::reply::html(template)
         });
 
-    let game_mode = warp::path("game_mode")
+    let game_mode_local = warp::path("game_mode_local")
         .and(warp::post())
         .map(move || {
             // Read the HTML template from file (assuming the file exists)
-            let template_path = "templates/game_mode.html";
+            let template_path = "templates/game_mode_local.html";
+            let template = read_html_template(template_path).unwrap(); // We assume the file exists and unwrap the result
+
+            // Return the template as a valid HTML response
+            html(template)
+        });
+
+    let game_mode_online = warp::path("game_mode_online")
+        .and(warp::post())
+        .map(move || {
+            // Read the HTML template from file (assuming the file exists)
+            let template_path = "templates/game_mode_online.html";
             let template = read_html_template(template_path).unwrap(); // We assume the file exists and unwrap the result
 
             // Return the template as a valid HTML response
@@ -233,13 +251,32 @@ async fn main() {
         });
     
     // Endpoint: Create a new hnefataflgame and redirect to it
-    let hnefatafl_redirect = warp::path("hnefatafl_redirect")
+    let hnefatafl_redirect_local = warp::path("hnefatafl_redirect_local")
         .and(warp::post())
         .and(state_filter.clone())
         .and_then(|state: AppState| async move {
             let mut games = state.games.write().await;
             let id = generate_random_id();
-            let game = GameVariant::Hnefatafl(HnefataflGameState::new(id));
+            let game = GameVariant::Hnefatafl(HnefataflGameState::new(id), GameMode::Local);
+            games.push(Some(game)); // Store the new game
+
+            // Redirect to the new game page
+            let response = warp::http::Response::builder()
+                .status(302)
+                .header("Location", format!("/game/{}", id))
+                .body("Redirecting to new game...")
+                .unwrap();
+
+            Ok::<_, warp::Rejection>(response)
+        });
+
+    let hnefatafl_redirect_online = warp::path("hnefatafl_redirect_online")
+        .and(warp::post())
+        .and(state_filter.clone())
+        .and_then(|state: AppState| async move {
+            let mut games = state.games.write().await;
+            let id = generate_random_id();
+            let game = GameVariant::Hnefatafl(HnefataflGameState::new(id), GameMode::Online);
             games.push(Some(game)); // Store the new game
 
             // Redirect to the new game page
@@ -253,13 +290,32 @@ async fn main() {
         });
 
     // Endpoint: Create a new tablut game and redirect to it
-    let tablut_redirect = warp::path("tablut_redirect")
+    let tablut_redirect_local = warp::path("tablut_redirect_local")
         .and(warp::post())
         .and(state_filter.clone())
         .and_then(|state: AppState| async move {
             let mut games = state.games.write().await;
             let id = generate_random_id();
-            let game = GameVariant::Tablut(TablutGameState::new(id));
+            let game = GameVariant::Tablut(TablutGameState::new(id), GameMode::Local);
+            games.push(Some(game)); // Store the new game
+
+            // Redirect to the new game page
+            let response = warp::http::Response::builder()
+                .status(302)
+                .header("Location", format!("/game/{}", id))
+                .body("Redirecting to new game...")
+                .unwrap();
+
+            Ok::<_, warp::Rejection>(response)
+        });
+
+    let tablut_redirect_online = warp::path("tablut_redirect_online")
+        .and(warp::post())
+        .and(state_filter.clone())
+        .and_then(|state: AppState| async move {
+            let mut games = state.games.write().await;
+            let id = generate_random_id();
+            let game = GameVariant::Tablut(TablutGameState::new(id), GameMode::Online);
             games.push(Some(game)); // Store the new game
 
             // Redirect to the new game page
@@ -273,13 +329,32 @@ async fn main() {
         });
 
     // Endpoint: Create a new brandubh game and redirect to it
-    let brandubh_redirect = warp::path("brandubh_redirect")
+    let brandubh_redirect_local = warp::path("brandubh_redirect_local")
         .and(warp::post())
         .and(state_filter.clone())
         .and_then(|state: AppState| async move {
             let mut games = state.games.write().await;
             let id = generate_random_id();
-            let game = GameVariant::Brandubh(BrandubhGameState::new(id));
+            let game = GameVariant::Brandubh(BrandubhGameState::new(id), GameMode::Local);
+            games.push(Some(game)); // Store the new game
+
+            // Redirect to the new game page
+            let response = warp::http::Response::builder()
+                .status(302)
+                .header("Location", format!("/game/{}", id))
+                .body("Redirecting to new game...")
+                .unwrap();
+
+            Ok::<_, warp::Rejection>(response)
+        });
+
+    let brandubh_redirect_online = warp::path("brandubh_redirect_online")
+        .and(warp::post())
+        .and(state_filter.clone())
+        .and_then(|state: AppState| async move {
+            let mut games = state.games.write().await;
+            let id = generate_random_id();
+            let game = GameVariant::Brandubh(BrandubhGameState::new(id), GameMode::Online);
             games.push(Some(game)); // Store the new game
 
             // Redirect to the new game page
@@ -294,84 +369,117 @@ async fn main() {
 
 
     // Dictionary to store broadcast channels for each game
-    let channels: Arc<RwLock<HashMap<usize, broadcast::Sender<String>>>> = Arc::new(RwLock::new(HashMap::new()));
+    let channels: Arc<RwLock<HashMap<usize, HashMap<String, broadcast::Sender<String>>>>> = Arc::new(RwLock::new(HashMap::new()));
+
 
     // Endpoint to create a new game and its broadcast channel
     let new_game = warp::path!("game" / usize)
         .and(warp::get())
         .and(state_filter.clone())
         .and({
-            let channels = channels.clone();
+            let channels = channels.clone(); // Ensure type matches HashMap<usize, HashMap<String, Sender<String>>>
             warp::any().map(move || channels.clone())
         })
-        .and_then(|id: usize, state: AppState, channels: Arc<RwLock<HashMap<usize, broadcast::Sender<String>>>>| async move {
-            let mut channels = channels.write().await;
-            if !channels.contains_key(&id) {
-                // Create a new broadcast channel for this game ID
-                channels.insert(id, broadcast::channel::<String>(100).0);
-            }
+        .and(warp::cookie::optional("session_id")) // Retrieve session_id from cookies
+        .and_then(
+            |id: usize, 
+            state: AppState, 
+            channels: Arc<RwLock<HashMap<usize, HashMap<String, broadcast::Sender<String>>>>>, 
+            session_id: Option<String>| async move {
+                let mut games = state.games.write().await;
+                let players = state.players.read().await;
 
-            // Find the game and return its initial state
-            let games = state.games.write().await;
+                // Check if the game already exists
+                let mut board_html = String::new();
+                let mut board_message = String::new();
+                let mut game_title = String::new();
+                let mut players_html = String::new();
+                let mut player_username = String::new();
 
-            let mut board_html = String::new();
-            let mut board_message = String::new();
-            let mut game_title = String::new();
+                let found_game = games.iter().any(|game_option| {
+                    game_option.as_ref().map_or(false, |game_variant| match game_variant {
+                        GameVariant::Tablut(game, _) => {
+                            if game.id == id {
+                                board_html = render_tablut_board_as_html(&game.board);
+                                board_message = game.board_message.clone();
+                                game_title = game.game_title.clone();
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                        GameVariant::Hnefatafl(game, _) => {
+                            if game.id == id {
+                                board_html = render_hnefatafl_board_as_html(&game.board);
+                                board_message = game.board_message.clone();
+                                game_title = game.game_title.clone();
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                        GameVariant::Brandubh(game, _) => {
+                            if game.id == id {
+                                board_html = render_brandubh_board_as_html(&game.board);
+                                board_message = game.board_message.clone();
+                                game_title = game.game_title.clone();
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                    })
+                });
 
-            let found_game = games.iter().any(|game_option| {
-                game_option.as_ref().map_or(false, |game_variant| match game_variant {
-                    GameVariant::Tablut(game) => {
-                        if game.id == id {
-                            board_html = render_tablut_board_as_html(&game.board);
-                            board_message = game.board_message.clone();
-                            game_title = game.game_title.clone();
-                            true
-                        } else {
-                            false
+                if found_game {
+                    // Create a broadcast channel for each player tied to their session_id
+                    {
+                        let mut channels = channels.write().await;
+
+                        // Check if the game-specific channels map exists
+                        let game_channels = channels.entry(id).or_insert_with(HashMap::new);
+
+                        // For each player, create a broadcast channel if it doesn't exist
+                        for (session_id, _) in players.iter() {
+                            game_channels.entry(session_id.clone()).or_insert_with(|| {
+                                broadcast::channel::<String>(100).0
+                            });
                         }
                     }
-                    GameVariant::Hnefatafl(game) => {
-                        if game.id == id {
-                            board_html = render_hnefatafl_board_as_html(&game.board);
-                            board_message = game.board_message.clone();
-                            game_title = game.game_title.clone();
-                            true
-                        } else {
-                            false
+
+                    // If session_id is provided, get the player's username from the players map
+                    if let Some(session_id) = session_id {
+                        if let Some(username) = players.get(&session_id) {
+                            player_username = username.clone(); // Set the player's username
+
+                            // Add player's name to the players list for this game
+                            players_html.push_str(&format!("<p>{}</p>", username));
                         }
                     }
-                    GameVariant::Brandubh(game) => {
-                        if game.id == id {
-                            board_html = render_brandubh_board_as_html(&game.board);
-                            board_message = game.board_message.clone();
-                            game_title = game.game_title.clone();
-                            true
-                        } else {
-                            false
-                        }
-                    }
-                })
-            });
 
-            if found_game {
-                // Read the HTML template from file
-                let template_path = "templates/game.html";
-                let template = read_html_template(template_path).unwrap();
+                    // Read the HTML template from file
+                    let template_path = "templates/game.html";
+                    let template = read_html_template(template_path).unwrap();
 
-                // Replace placeholders in the template with dynamic content
-                let response = template
-                    .replace("{game_title}", &game_title)
-                    .replace("{board_message}", &board_message)
-                    .replace("{board_html}", &board_html)
-                    .replace("{id}", &id.to_string());
+                    // Replace placeholders in the template with dynamic content
+                    let response = template
+                        .replace("{game_title}", &game_title)
+                        .replace("{board_message}", &board_message)
+                        .replace("{board_html}", &board_html)
+                        .replace("{id}", &id.to_string())
+                        .replace("{player_username}", &player_username) // Player's username
+                        .replace("{players_html}", &players_html); // List of players in the game
 
-                Ok::<_, warp::Rejection>(warp::reply::html(response))
-            } else {
-                Err(warp::reject::not_found())
-            }
-        });
+                    Ok::<_, warp::Rejection>(warp::reply::html(response))
+                } else {
+                    Err(warp::reject::not_found())
+                }
+            },
+        );
 
-    // Endpoint: Join a game by IP
+
+
+    // Endpoint: Join a game by ID
     let join_game_by_id = warp::path("join")
         .and(warp::post())
         .map( || {
@@ -388,14 +496,18 @@ async fn main() {
         .and_then(|game_id: usize, state: AppState| async move {
             let games = state.games.read().await;
 
-            // Iterate over all game variants and check for the ID
-            if games.iter().any(|game_option| {
+            // Check if there's a game with the given ID and if it's in online mode
+            let game_exists_and_online = games.iter().any(|game_option| {
                 game_option.as_ref().map_or(false, |game_variant| match game_variant {
-                    GameVariant::Tablut(game) => game.id == game_id,
-                    GameVariant::Hnefatafl(game) => game.id == game_id,
-                    GameVariant::Brandubh(game) => game.id == game_id,
+                    GameVariant::Tablut(game, GameMode::Online) => game.id == game_id,
+                    GameVariant::Hnefatafl(game, GameMode::Online) => game.id == game_id,
+                    GameVariant::Brandubh(game, GameMode::Online) => game.id == game_id,
+                    _ => false,
                 })
-            }) {
+            });
+
+            if game_exists_and_online {
+                // Redirect to the game
                 let response = warp::http::Response::builder()
                     .status(302)
                     .header("Location", format!("/game/{}", game_id))
@@ -403,9 +515,15 @@ async fn main() {
                     .unwrap();
                 Ok::<_, warp::Rejection>(response)
             } else {
-                Err(warp::reject::not_found())
+                // Return error message if the game is not online or doesn't exist
+                let error_response = warp::http::Response::builder()
+                    .status(400) // Bad Request
+                    .body("Cannot connect to game. Either the game does not exist or is not online.")
+                    .unwrap();
+                Ok::<_, warp::Rejection>(error_response)
             }
         });
+
 
 
     // Endpoint for board updates
@@ -415,20 +533,26 @@ async fn main() {
             let channels = channels.clone();
             warp::any().map(move || channels.clone())
         })
+        .and(warp::cookie::optional("session_id")) // Capture the session ID from cookies
         .and_then(
-            |id: usize, channels: Arc<RwLock<HashMap<usize, broadcast::Sender<String>>>>| async move {
-                let channels = channels.read().await;
+            |id: usize, channels: Arc<RwLock<HashMap<usize, HashMap<String, broadcast::Sender<String>>>>>, session_id: Option<String>| async move {
+                if let Some(session_id) = session_id {
+                    let channels = channels.read().await;
 
-                if let Some(channel) = channels.get(&id) {
-                    let rx = channel.subscribe();
-                    Ok::<_, warp::Rejection>(warp::sse::reply(warp::sse::keep_alive().stream(async_stream::stream! {
-                        let mut rx = rx;
-                        while let Ok(message) = rx.recv().await {
-                            yield Ok::<_, warp::Error>(warp::sse::Event::default().data(message));
+                    if let Some(game_channels) = channels.get(&id) {
+                        if let Some(channel) = game_channels.get(&session_id) {
+                            let rx = channel.subscribe();
+                            return Ok::<_, warp::Rejection>(warp::sse::reply(warp::sse::keep_alive().stream(async_stream::stream! {
+                                let mut rx = rx;
+                                while let Ok(message) = rx.recv().await {
+                                    yield Ok::<_, warp::Error>(warp::sse::Event::default().data(message));
+                                }
+                            })));
                         }
-                    })))
+                    }
+                    Err(warp::reject::not_found())
                 } else {
-                Err(warp::reject::not_found())
+                    Err(warp::reject::not_found())
                 }
             },
         );
@@ -436,98 +560,114 @@ async fn main() {
 
     // Endpoint to handle cell clicks
     let cell_click = warp::path!("cell-click" / usize)
-        .and(warp::post())
-        .and(warp::body::json())
-        .and(state_filter.clone())
-        .and({
-            let channels = channels.clone();
-            warp::any().map(move || channels.clone())
-        })
-        .and_then(
-            |game_id: usize, click: CellClick, state: AppState, channels: Arc<RwLock<HashMap<usize, broadcast::Sender<String>>>>| async move {
-                let mut games = state.games.write().await;
+    .and(warp::post())
+    .and(warp::body::json())
+    .and(state_filter.clone())
+    .and({
+        let channels = channels.clone();
+        warp::any().map(move || channels.clone())
+    })
+    .and_then(
+        |game_id: usize, click: CellClick, state: AppState, channels: Arc<RwLock<HashMap<usize, HashMap<String, broadcast::Sender<String>>>>>| async move {
+            // Print the session ID from the click object
+            println!("Cell click received. Session ID: {:?}", click.session_id);
 
-                if let Some(game_option) = games.iter_mut().find(|game_option| {
-                    if let Some(game_variant) = game_option {
-                        match game_variant {
-                            GameVariant::Tablut(game) => game.id == game_id,
-                            GameVariant::Hnefatafl(game) => game.id == game_id,
-                            GameVariant::Brandubh(game) => game.id == game_id,
-                        }
-                    } else {
-                        false
+            let mut games = state.games.write().await;
+            let players = state.players.read().await; // Access the player mapping
+
+            // Check if the game exists and process the click
+            if let Some(game_option) = games.iter_mut().find(|game_option| {
+                if let Some(game_variant) = game_option {
+                    match game_variant {
+                        GameVariant::Tablut(game, _) => game.id == game_id,
+                        GameVariant::Hnefatafl(game, _) => game.id == game_id,
+                        GameVariant::Brandubh(game, _) => game.id == game_id,
                     }
-                }) {
-                    if let Some(game_variant) = game_option {
-                        let (board_html, board_message, process_result) = match game_variant {
-                            GameVariant::Tablut(game) => {
-                                let process_result = game.process_click(click.row, click.col);
-                                let board_html = render_tablut_board_as_html(&game.board);
-                                (board_html, game.board_message.clone(), process_result)
-                            }
-                            GameVariant::Hnefatafl(game) => {
-                                let process_result = game.process_click(click.row, click.col);
-                                let board_html = render_hnefatafl_board_as_html(&game.board);
-                                (board_html, game.board_message.clone(), process_result)
-                            }
-                            GameVariant::Brandubh(game) => {
-                                let process_result = game.process_click(click.row, click.col);
-                                let board_html = render_brandubh_board_as_html(&game.board);
-                                (board_html, game.board_message.clone(), process_result)
-                            }
-                        };
+                } else {
+                    false
+                }
+            }) {
+                if let Some(game_variant) = game_option {
+                    let (board_html, board_message, process_result, game_mode) = match game_variant {
+                        GameVariant::Tablut(game, mode) => {
+                            let process_result = game.process_click(click.row, click.col);
+                            let board_html = render_tablut_board_as_html(&game.board);
+                            (board_html, game.board_message.clone(), process_result, mode.clone())
+                        }
+                        GameVariant::Hnefatafl(game, mode) => {
+                            let process_result = game.process_click(click.row, click.col);
+                            let board_html = render_hnefatafl_board_as_html(&game.board);
+                            (board_html, game.board_message.clone(), process_result, mode.clone())
+                        }
+                        GameVariant::Brandubh(game, mode) => {
+                            let process_result = game.process_click(click.row, click.col);
+                            let board_html = render_brandubh_board_as_html(&game.board);
+                            (board_html, game.board_message.clone(), process_result, mode.clone())
+                        }
+                    };
 
-                        match process_result {
-                            Ok(_) => {
-                                // Broadcast the new board state to the game's channel
-                                let update = serde_json::to_string(&serde_json::json!({
-                                    "board_html": board_html,
-                                    "board_message": board_message,
-                                }))
-                                .unwrap();
+                    match process_result {
+                        Ok(_) => {
+                            // Check if session_id exists in players
+                            let session_id = &click.session_id;
+                                if let Some(username) = players.get(session_id) {
+                                    // Prepare the update message
+                                    let update = serde_json::to_string(&serde_json::json!({
+                                        "board_html": board_html,
+                                        "board_message": board_message,
+                                        "username": username,
+                                    }))
+                                    .unwrap();
 
-                                let channels = channels.read().await;
-                                if let Some(channel) = channels.get(&game_id) {
-                                    let _ = channel.send(update); // Ignore errors if no subscribers
+                                    // Access the channels map
+                                    let channels = channels.read().await;
+
+                                    if let Some(game_channels) = channels.get(&game_id) {
+                                        match game_mode {
+                                            GameMode::Local => {
+                                                // Broadcast the update to all players in the game
+                                                for channel in game_channels.values() {
+                                                    let _ = channel.send(update.clone());
+                                                }
+                                            }
+                                            GameMode::Online => {
+                                                // Only broadcast to the player who clicked
+                                                if let Some(player_channel) = game_channels.get(session_id) {
+                                                    let _ = player_channel.send(update);
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    // If the session_id isn't found in players, log it
+                                    println!("Session ID not found in players: {:?}", session_id);
                                 }
 
-                                return Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
-                                    "success": true,
-                                    "board_html": board_html,
-                                    "board_message": board_message,
-                                })));
-                            }
-                            Err(error_message) => {
-                                // Broadcast the new board state to the game's channel
-                                let update = serde_json::to_string(&serde_json::json!({
-                                    "board_html": board_html,
-                                    "board_message": board_message,
-                                }))
-                                .unwrap();
-
-                                let channels = channels.read().await;
-                                if let Some(channel) = channels.get(&game_id) {
-                                    let _ = channel.send(update); // Ignore errors if no subscribers
-                                }
-
-                                return Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
-                                    "success": false,
-                                    "error": error_message,
-                                    "board_html": board_html,
-                                    "board_message": board_message,
-                                })));
-                            }
+                            return Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+                                "success": true,
+                                "board_html": board_html,
+                                "board_message": board_message,
+                            })));
+                        }
+                        Err(error_message) => {
+                            return Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+                                "success": false,
+                                "error": error_message,
+                                "board_html": board_html,
+                                "board_message": board_message,
+                            })));
                         }
                     }
                 }
+            }
 
-                // If no game could process the click
-                Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
-                    "success": false,
-                    "error": "Game not found or inactive",
-                })))
-            },
-        );
+            // If no game could process the click
+            Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+                "success": false,
+                "error": "Game not found or inactive",
+            })))
+        },
+    );
 
 
     // Endpoint: Make a move
@@ -543,7 +683,7 @@ async fn main() {
                 if let Some(game_variant) = game_option {
                     // Match the game type and check the ID
                     match game_variant {
-                        GameVariant::Tablut(game) if game.id == move_request.game_id => {
+                        GameVariant::Tablut(game, _) if game.id == move_request.game_id => {
                             return match game.make_move(move_request.from, move_request.to) {
                                 Ok(_) => Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
                                     "success": true,
@@ -555,7 +695,7 @@ async fn main() {
                                 }))),
                             };
                         }
-                        GameVariant::Hnefatafl(game) if game.id == move_request.game_id => {
+                        GameVariant::Hnefatafl(game, _) if game.id == move_request.game_id => {
                             return match game.make_move(move_request.from, move_request.to) {
                                 Ok(_) => Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
                                     "success": true,
@@ -594,10 +734,14 @@ async fn main() {
         .or(board_updates)
         .or(join_game_by_id)
         .or(redirect_to_game)
-        .or(hnefatafl_redirect)
-        .or(tablut_redirect)
-        .or(brandubh_redirect)
-        .or(game_mode)
+        .or(hnefatafl_redirect_local)
+        .or(hnefatafl_redirect_online)
+        .or(tablut_redirect_local)
+        .or(tablut_redirect_online)
+        .or(brandubh_redirect_local)
+        .or(brandubh_redirect_online)
+        .or(game_mode_local)
+        .or(game_mode_online)
         .with(cors().allow_any_origin().allow_methods(vec![Method::GET, Method::POST]));
 
 
@@ -828,14 +972,17 @@ fn get_session_id_from_cookie(headers: &warp::http::HeaderMap) -> Option<String>
             cookie_str
                 .split(';')
                 .find_map(|cookie| {
-                    if cookie.trim_start().starts_with("session_id=") {
-                        Some(cookie.trim_start()[11..].to_string()) // Extract session ID
+                    let cookie = cookie.trim();
+                    if cookie.starts_with("session_id=") {
+                        // Safe extraction after the "=" symbol
+                        Some(cookie["session_id=".len()..].to_string()) // Extract session ID
                     } else {
                         None
                     }
                 })
         })
 }
+
 
 // Helper function to read the HTML template from a file
 fn read_html_template(path: &str) -> Result<String, std::io::Error> {
