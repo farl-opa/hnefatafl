@@ -37,12 +37,12 @@ pub enum GameMode {
 #[derive(Clone)]
 pub struct AppState {
     pub games: Arc<RwLock<Vec<Option<GameVariant>>>>, // Use Option to mark ended games
-    pub players: Arc<RwLock<HashMap<String, String>>>, // Maps session IDs to usernames
+    pub players: Arc<RwLock<HashMap<String, (String, String)>>>, // Maps session IDs to usernames
 }
 
 #[derive(Clone, Debug)]
 pub enum GameVariant {
-    Tablut(TablutGameState, GameMode),
+    Tablut(TablutGameState, TablutGameState, GameMode),
     Hnefatafl(HnefataflGameState, GameMode),
     Brandubh(BrandubhGameState, GameMode),
 }
@@ -101,11 +101,11 @@ async fn main() {
             if let Some(session_id) = get_session_id_from_cookie(&headers) {
                 // If session_id exists, use the existing username
                 let players = state.players.read().await;
-                if let Some(username) = players.get(&session_id) {
+                if let Some((username, _)) = players.get(&session_id) {
                     // Session already exists, don't ask for the username again
                     let players_html: String = players
                         .values()
-                        .map(|username| format!("<p>{}</p>", username))
+                        .map(|(username, _)| format!("<p>{}</p>", username))
                         .collect();
 
                     // Read the HTML template from file
@@ -125,7 +125,7 @@ async fn main() {
             // If no session exists, proceed with creating a new session
             if let Some(username) = form.get("username") {
                 let session_id = Uuid::new_v4().to_string(); // Generate a unique session ID
-                state.players.write().await.insert(session_id.clone(), username.clone());
+                state.players.write().await.insert(session_id.clone(), (username.clone(), "local".to_string()));
 
                 // Set session_id in a cookie
                 let cookie = format!("session_id={}; Path=/; HttpOnly;", session_id);
@@ -136,7 +136,7 @@ async fn main() {
                 // Build the players list in HTML
                 let players_html: String = players
                     .values()
-                    .map(|username| format!("<p>{}</p>", username))
+                    .map(|(username, _)| format!("<p>{}</p>", username))
                     .collect();
 
                 // Read the HTML template from file
@@ -168,11 +168,11 @@ async fn main() {
             if let Some(session_id) = get_session_id_from_cookie(&headers) {
                 // Check if the session_id exists in the players map
                 let players = state.players.read().await;
-                if let Some(username) = players.get(&session_id) {
+                if let Some((username, _)) = players.get(&session_id) {
                     // Build the players list in HTML
                     let players_html: String = players
                         .values()
-                        .map(|username| format!("<p>{}</p>", username))
+                        .map(|(username, _)| format!("<p>{}</p>", username))
                         .collect();
 
                     // Read the HTML template from file
@@ -296,7 +296,7 @@ async fn main() {
         .and_then(|state: AppState| async move {
             let mut games = state.games.write().await;
             let id = generate_random_id();
-            let game = GameVariant::Tablut(TablutGameState::new(id), GameMode::Local);
+            let game = GameVariant::Tablut(TablutGameState::new(id), TablutGameState::new(id), GameMode::Local);
             games.push(Some(game)); // Store the new game
 
             // Redirect to the new game page
@@ -315,7 +315,7 @@ async fn main() {
         .and_then(|state: AppState| async move {
             let mut games = state.games.write().await;
             let id = generate_random_id();
-            let game = GameVariant::Tablut(TablutGameState::new(id), GameMode::Online);
+            let game = GameVariant::Tablut(TablutGameState::new(id), TablutGameState::new(id), GameMode::Online);
             games.push(Some(game)); // Store the new game
 
             // Redirect to the new game page
@@ -396,11 +396,12 @@ async fn main() {
 
                 let found_game = games.iter().any(|game_option| {
                     game_option.as_ref().map_or(false, |game_variant| match game_variant {
-                        GameVariant::Tablut(game, _) => {
-                            if game.id == id {
-                                board_html = render_tablut_board_as_html(&game.board);
-                                board_message = game.board_message.clone();
-                                game_title = game.game_title.clone();
+                        GameVariant::Tablut(game_at, game_def, _) => {
+                            if game_at.id == id {
+                                board_html = render_tablut_board_as_html(&game_at.board);
+                                board_message = game_at.board_message.clone();
+                                game_title = game_at.game_title.clone();
+                                // game_def = &game_at.clone();
                                 true
                             } else {
                                 false
@@ -444,9 +445,9 @@ async fn main() {
                     let session_html = session_id.clone();
 
                     if let Some(session_id) = session_id {
-                        if let Some(username) = players.get(&session_id) {
+                        if let Some((username, role)) = players.get(&session_id) {
                             player_username = username.clone();
-                            players_html.push_str(&format!("<p>{}</p>", username));
+                            players_html.push_str(&format!("<p>{}{}</p>", username, role));
                         }
                     }
 
@@ -499,7 +500,7 @@ async fn main() {
             // Check if there's a game with the given ID and if it's in online mode
             let game_exists_and_online = games.iter().any(|game_option| {
                 game_option.as_ref().map_or(false, |game_variant| match game_variant {
-                    GameVariant::Tablut(game, GameMode::Online) => game.id == game_id,
+                    GameVariant::Tablut(game_at, game_def, GameMode::Online) => game_at.id == game_id,
                     GameVariant::Hnefatafl(game, GameMode::Online) => game.id == game_id,
                     GameVariant::Brandubh(game, GameMode::Online) => game.id == game_id,
                     _ => false,
@@ -579,7 +580,7 @@ async fn main() {
             if let Some(game_option) = games.iter_mut().find(|game_option| {
                 if let Some(game_variant) = game_option {
                     match game_variant {
-                        GameVariant::Tablut(game, _) => game.id == game_id,
+                        GameVariant::Tablut(game_at, game_def, _) => game_at.id == game_id,
                         GameVariant::Hnefatafl(game, _) => game.id == game_id,
                         GameVariant::Brandubh(game, _) => game.id == game_id,
                     }
@@ -589,10 +590,10 @@ async fn main() {
             }) {
                 if let Some(game_variant) = game_option {
                     let (board_html, board_message, process_result, game_mode) = match game_variant {
-                        GameVariant::Tablut(game, mode) => {
-                            let process_result = game.process_click(click.row, click.col);
-                            let board_html = render_tablut_board_as_html(&game.board);
-                            (board_html, game.board_message.clone(), process_result, mode.clone())
+                        GameVariant::Tablut(game_at, game_def, mode) => {                            
+                            let process_result = game_at.process_click(click.row, click.col);
+                            let board_html = render_tablut_board_as_html(&game_at.board);
+                            (board_html, game_at.board_message.clone(), process_result, mode.clone())
                         }
                         GameVariant::Hnefatafl(game, mode) => {
                             let process_result = game.process_click(click.row, click.col);
@@ -670,54 +671,54 @@ async fn main() {
     );
 
 
-    // Endpoint: Make a move
-    let make_move = warp::path("move")
-        .and(warp::post())
-        .and(warp::body::json())
-        .and(state_filter.clone())
-        .and_then(|move_request: MoveRequest, state: AppState| async move {
-            let mut games = state.games.write().await;
+    // // Endpoint: Make a move
+    // let make_move = warp::path("move")
+    //     .and(warp::post())
+    //     .and(warp::body::json())
+    //     .and(state_filter.clone())
+    //     .and_then(|move_request: MoveRequest, state: AppState| async move {
+    //         let mut games = state.games.write().await;
 
-            // Iterate over all games to find the one to process the move
-            for game_option in games.iter_mut() {
-                if let Some(game_variant) = game_option {
-                    // Match the game type and check the ID
-                    match game_variant {
-                        GameVariant::Tablut(game, _) if game.id == move_request.game_id => {
-                            return match game.make_move(move_request.from, move_request.to) {
-                                Ok(_) => Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
-                                    "success": true,
-                                    "game_state": game,
-                                }))),
-                                Err(e) => Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
-                                    "success": false,
-                                    "error": e,
-                                }))),
-                            };
-                        }
-                        GameVariant::Hnefatafl(game, _) if game.id == move_request.game_id => {
-                            return match game.make_move(move_request.from, move_request.to) {
-                                Ok(_) => Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
-                                    "success": true,
-                                    "game_state": game,
-                                }))),
-                                Err(e) => Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
-                                    "success": false,
-                                    "error": e,
-                                }))),
-                            };
-                        }
-                        _ => continue,
-                    }
-                }
-            }
+    //         // Iterate over all games to find the one to process the move
+    //         for game_option in games.iter_mut() {
+    //             if let Some(game_variant) = game_option {
+    //                 // Match the game type and check the ID
+    //                 match game_variant {
+    //                     GameVariant::Tablut(game_at, game_def, _) if game_at.id == move_request.game_id => {
+    //                         return match game_at.make_move(move_request.from, move_request.to) {
+    //                             Ok(_) => Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+    //                                 "success": true,
+    //                                 "game_state": game_at,
+    //                             }))),
+    //                             Err(e) => Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+    //                                 "success": false,
+    //                                 "error": e,
+    //                             }))),
+    //                         };
+    //                     }
+    //                     GameVariant::Hnefatafl(game, _) if game.id == move_request.game_id => {
+    //                         return match game.make_move(move_request.from, move_request.to) {
+    //                             Ok(_) => Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+    //                                 "success": true,
+    //                                 "game_state": game,
+    //                             }))),
+    //                             Err(e) => Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+    //                                 "success": false,
+    //                                 "error": e,
+    //                             }))),
+    //                         };
+    //                     }
+    //                     _ => continue,
+    //                 }
+    //             }
+    //         }
 
-            // If no matching game was found
-            Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
-                "success": false,
-                "error": "Game not found or ended"
-            })))
-        });
+    //         // If no matching game was found
+    //         Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+    //             "success": false,
+    //             "error": "Game not found or ended"
+    //         })))
+    //     });
 
 
 
@@ -729,7 +730,7 @@ async fn main() {
         .or(sign_out_post)
         .or(rules)
         .or(new_game)
-        .or(make_move)
+        // .or(make_move)
         .or(cell_click)
         .or(board_updates)
         .or(join_game_by_id)

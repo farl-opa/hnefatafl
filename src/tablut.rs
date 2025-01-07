@@ -65,6 +65,7 @@ pub struct GameState {
     pub game_title: String,    // Title of the game
     pub last_click: (usize, usize), // Last clicked cell
     pub id: usize,
+    pub move_done: bool,
 }
 
 impl GameState {
@@ -159,6 +160,7 @@ impl GameState {
             game_title: "Tablut".to_string(),
             last_click: (0, 0),
             id: id,
+            move_done: false,
         }
     }
     
@@ -217,6 +219,7 @@ impl GameState {
                 for cell in possible_moves {
                     self.board[cell.0][cell.1].is_possible_move = true;
                 }
+                self.move_done = false;
             }
         } else {
             // Second click: Select an empty cell to move to
@@ -390,6 +393,7 @@ impl GameState {
                     is_possible_move: false,
                 };
                 self.board_message = "Current turn: Defender".to_string();
+                self.move_done = true;
             } else {
                 self.current_turn =  Cell {
                     cell_type: CellType::Attacker,
@@ -399,6 +403,7 @@ impl GameState {
                     is_possible_move: false,
                 };
                 self.board_message = "Current turn: Attacker".to_string();
+                self.move_done = true;
             };
         }
     
