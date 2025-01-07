@@ -386,7 +386,7 @@ async fn main() {
             state: AppState, 
             channels: Arc<RwLock<HashMap<usize, HashMap<String, broadcast::Sender<String>>>>>, 
             session_id: Option<String>| async move {
-                let mut games = state.games.write().await;
+                let games = state.games.write().await;
                 let players = state.players.read().await;
 
                 // Check if the game already exists
