@@ -371,25 +371,23 @@ async fn main() {
     // Dictionary to store broadcast channels for each game
     let channels: Arc<RwLock<HashMap<usize, HashMap<String, broadcast::Sender<String>>>>> = Arc::new(RwLock::new(HashMap::new()));
 
-
     // Endpoint to create a new game and its broadcast channel
     let new_game = warp::path!("game" / usize)
         .and(warp::get())
         .and(state_filter.clone())
         .and({
-            let channels = channels.clone(); // Ensure type matches HashMap<usize, HashMap<String, Sender<String>>>
+            let channels = channels.clone();
             warp::any().map(move || channels.clone())
         })
         .and(warp::cookie::optional("session_id")) // Retrieve session_id from cookies
         .and_then(
-            |id: usize, 
-            state: AppState, 
-            channels: Arc<RwLock<HashMap<usize, HashMap<String, broadcast::Sender<String>>>>>, 
+            |id: usize,
+            state: AppState,
+            channels: Arc<RwLock<HashMap<usize, HashMap<String, broadcast::Sender<String>>>>>,
             session_id: Option<String>| async move {
                 let games = state.games.write().await;
                 let players = state.players.read().await;
 
-                // Check if the game already exists
                 let mut board_html = String::new();
                 let mut board_message = String::new();
                 let mut game_title = String::new();
@@ -432,43 +430,44 @@ async fn main() {
                 });
 
                 if found_game {
-                    // Create a broadcast channel for each player tied to their session_id
                     {
                         let mut channels = channels.write().await;
-
-                        // Check if the game-specific channels map exists
                         let game_channels = channels.entry(id).or_insert_with(HashMap::new);
 
-                        // For each player, create a broadcast channel if it doesn't exist
                         for (session_id, _) in players.iter() {
                             game_channels.entry(session_id.clone()).or_insert_with(|| {
                                 broadcast::channel::<String>(100).0
                             });
                         }
                     }
+                    
+                    let session_html = session_id.clone();
 
-                    // If session_id is provided, get the player's username from the players map
                     if let Some(session_id) = session_id {
                         if let Some(username) = players.get(&session_id) {
-                            player_username = username.clone(); // Set the player's username
-
-                            // Add player's name to the players list for this game
+                            player_username = username.clone();
                             players_html.push_str(&format!("<p>{}</p>", username));
                         }
                     }
 
-                    // Read the HTML template from file
                     let template_path = "templates/game.html";
                     let template = read_html_template(template_path).unwrap();
 
-                    // Replace placeholders in the template with dynamic content
+                    // Embed the session_id in a <script> tag in the response
+                    let session_script = if let Some(session_id) = session_html {
+                        format!(r#"<script>const session_id = "{}";</script>"#, session_id)
+                    } else {
+                        "<script>const session_id = null;</script>".to_string()
+                    };
+
                     let response = template
                         .replace("{game_title}", &game_title)
                         .replace("{board_message}", &board_message)
                         .replace("{board_html}", &board_html)
                         .replace("{id}", &id.to_string())
-                        .replace("{player_username}", &player_username) // Player's username
-                        .replace("{players_html}", &players_html); // List of players in the game
+                        .replace("{player_username}", &player_username)
+                        .replace("{players_html}", &players_html)
+                        .replace("</head>", &format!("{}\n</head>", session_script)); // Add session script to the head
 
                     Ok::<_, warp::Rejection>(warp::reply::html(response))
                 } else {
@@ -476,6 +475,7 @@ async fn main() {
                 }
             },
         );
+
 
 
 

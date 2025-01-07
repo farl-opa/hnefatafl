@@ -100,16 +100,6 @@
             document.querySelector('h3').innerText = data.board_message;
         };
     
-        // Retrieve the session_id from the cookies
-        const session_id = getSessionId();
-    
-        function getSessionId() {
-            // Retrieve the session_id from cookies
-            const cookies = document.cookie.split(';');
-            const sessionCookie = cookies.find(cookie => cookie.trim().startsWith('session_id='));
-            return sessionCookie ? sessionCookie.split('=')[1] : '';
-        }
-    
         function handleCellClick(row, col) {
             if (!session_id) {
                 console.error('Session ID is missing. Ensure the player is logged in.');
