@@ -43,8 +43,8 @@ pub struct AppState {
 #[derive(Clone, Debug)]
 pub enum GameVariant {
     Tablut(TablutGameState, TablutGameState, GameMode),
-    Hnefatafl(HnefataflGameState, GameMode),
-    Brandubh(BrandubhGameState, GameMode),
+    Hnefatafl(HnefataflGameState, HnefataflGameState, GameMode),
+    Brandubh(BrandubhGameState, BrandubhGameState, GameMode),
 }
 
 
@@ -320,7 +320,7 @@ async fn main() {
         .and_then(|state: AppState| async move {
             let mut games = state.games.write().await;
             let id = generate_random_id();
-            let game = GameVariant::Hnefatafl(HnefataflGameState::new(id), GameMode::Local);
+            let game = GameVariant::Hnefatafl(HnefataflGameState::new(id), HnefataflGameState::new(id), GameMode::Local);
             games.push(Some(game)); // Store the new game
 
             // Redirect to the new game page
@@ -339,7 +339,7 @@ async fn main() {
         .and_then(|state: AppState| async move {
             let mut games = state.games.write().await;
             let id = generate_random_id();
-            let game = GameVariant::Hnefatafl(HnefataflGameState::new(id), GameMode::Online);
+            let game = GameVariant::Hnefatafl(HnefataflGameState::new(id), HnefataflGameState::new(id), GameMode::Online);
             games.push(Some(game)); // Store the new game
 
             // Redirect to the new game page
@@ -398,7 +398,7 @@ async fn main() {
         .and_then(|state: AppState| async move {
             let mut games = state.games.write().await;
             let id = generate_random_id();
-            let game = GameVariant::Brandubh(BrandubhGameState::new(id), GameMode::Local);
+            let game = GameVariant::Brandubh(BrandubhGameState::new(id), BrandubhGameState::new(id), GameMode::Local);
             games.push(Some(game)); // Store the new game
 
             // Redirect to the new game page
@@ -417,7 +417,7 @@ async fn main() {
         .and_then(|state: AppState| async move {
             let mut games = state.games.write().await;
             let id = generate_random_id();
-            let game = GameVariant::Brandubh(BrandubhGameState::new(id), GameMode::Online);
+            let game = GameVariant::Brandubh(BrandubhGameState::new(id), BrandubhGameState::new(id), GameMode::Online);
             games.push(Some(game)); // Store the new game
 
             // Redirect to the new game page
@@ -470,21 +470,21 @@ async fn main() {
                                 false
                             }
                         }
-                        GameVariant::Hnefatafl(game, _) => {
-                            if game.id == id {
-                                board_html = render_hnefatafl_board_as_html(&game.board);
-                                board_message = game.board_message.clone();
-                                game_title = game.game_title.clone();
+                        GameVariant::Hnefatafl(game_at, game_def, _) => {
+                            if game_at.id == id {
+                                board_html = render_hnefatafl_board_as_html(&game_at.board);
+                                board_message = game_at.board_message.clone();
+                                game_title = game_at.game_title.clone();
                                 true
                             } else {
                                 false
                             }
                         }
-                        GameVariant::Brandubh(game, _) => {
-                            if game.id == id {
-                                board_html = render_brandubh_board_as_html(&game.board);
-                                board_message = game.board_message.clone();
-                                game_title = game.game_title.clone();
+                        GameVariant::Brandubh(game_at, game_def, _) => {
+                            if game_at.id == id {
+                                board_html = render_brandubh_board_as_html(&game_at.board);
+                                board_message = game_at.board_message.clone();
+                                game_title = game_at.game_title.clone();
                                 true
                             } else {
                                 false
@@ -510,7 +510,7 @@ async fn main() {
                     if let Some(session_id) = session_id {
                         if let Some((username, role)) = players.get(&session_id) {
                             player_username = username.clone();
-                            players_html.push_str(&format!("<p>{}{}</p>", username, role));
+                            players_html.push_str(&format!("<p>{} {}</p>", username, role));
                         }
                     }
 
@@ -564,8 +564,8 @@ async fn main() {
             let game_exists_and_online = games.iter().any(|game_option| {
                 game_option.as_ref().map_or(false, |game_variant| match game_variant {
                     GameVariant::Tablut(game_at, game_def, GameMode::Online) => game_at.id == game_id,
-                    GameVariant::Hnefatafl(game, GameMode::Online) => game.id == game_id,
-                    GameVariant::Brandubh(game, GameMode::Online) => game.id == game_id,
+                    GameVariant::Hnefatafl(game_at, game_def, GameMode::Online) => game_at.id == game_id,
+                    GameVariant::Brandubh(game_at, game_def, GameMode::Online) => game_at.id == game_id,
                     _ => false,
                 })
             });
@@ -633,48 +633,95 @@ async fn main() {
     })
     .and_then(
         |game_id: usize, click: CellClick, state: AppState, channels: Arc<RwLock<HashMap<usize, HashMap<String, broadcast::Sender<String>>>>>| async move {
-            // Print the session ID from the click object
-            println!("Cell click received. Session ID: {:?}", click.session_id);
+
+            let players = state.players.read().await;
+
+            let (_username, click_role) = match players.get(&click.session_id) {
+                Some((username, click_role)) => (username, click_role),
+                None => return Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+                    "success": false,
+                    "error": "Session ID not found",
+                }))),
+            };
 
             let mut games = state.games.write().await;
-            let players = state.players.read().await; // Access the player mapping
 
             // Check if the game exists and process the click
             if let Some(game_option) = games.iter_mut().find(|game_option| {
                 if let Some(game_variant) = game_option {
                     match game_variant {
-                        GameVariant::Tablut(game_at, game_def, _) => game_at.id == game_id,
-                        GameVariant::Hnefatafl(game, _) => game.id == game_id,
-                        GameVariant::Brandubh(game, _) => game.id == game_id,
+                        GameVariant::Tablut(game_at, _game_def, _) => game_at.id == game_id,
+                        GameVariant::Hnefatafl(game_at, _game_def, _) => game_at.id == game_id,
+                        GameVariant::Brandubh(game_at, _game_def, _) => game_at.id == game_id,
                     }
                 } else {
                     false
                 }
             }) {
                 if let Some(game_variant) = game_option {
-                    let (board_html, board_message, process_result, game_mode) = match game_variant {
-                        GameVariant::Tablut(game_at, game_def, mode) => {                            
-                            let process_result = game_at.process_click(click.row, click.col);
-                            let board_html = render_tablut_board_as_html(&game_at.board);
-                            (board_html, game_at.board_message.clone(), process_result, mode.clone())
+                    let (board_unupdated, board_html, board_message, process_result, game_mode) = match game_variant {
+                        GameVariant::Tablut(game_at, game_def, mode) => {
+                            if click_role == "defender" {
+                                let board_unupdated = render_tablut_board_as_html(&game_def.board.clone());
+                                let process_result = game_def.process_click(click.row, click.col);
+                                let board_html = render_tablut_board_as_html(&game_def.board);
+                                (board_unupdated, board_html, game_def.board_message.clone(), process_result, mode.clone())
+                            } else if click_role == "attacker" {
+                                let board_unupdated = render_tablut_board_as_html(&game_at.board.clone());
+                                let process_result = game_at.process_click(click.row, click.col);
+                                let board_html = render_tablut_board_as_html(&game_at.board);
+                                (board_unupdated, board_html, game_at.board_message.clone(), process_result, mode.clone())
+                            } else {
+                                let board_unupdated = render_tablut_board_as_html(&game_at.board.clone());
+                                let process_result = game_at.process_click(click.row, click.col);
+                                let board_html = render_tablut_board_as_html(&game_at.board);
+                                (board_unupdated, board_html, game_at.board_message.clone(), process_result, mode.clone())
+                            }
                         }
-                        GameVariant::Hnefatafl(game, mode) => {
-                            let process_result = game.process_click(click.row, click.col);
-                            let board_html = render_hnefatafl_board_as_html(&game.board);
-                            (board_html, game.board_message.clone(), process_result, mode.clone())
+                        GameVariant::Hnefatafl(game_at, game_def, mode) => {
+                            if click_role == "defender" {
+                                let board_unupdated = render_hnefatafl_board_as_html(&game_def.board.clone());
+                                let process_result = game_def.process_click(click.row, click.col);
+                                let board_html = render_hnefatafl_board_as_html(&game_def.board);
+                                (board_unupdated, board_html, game_def.board_message.clone(), process_result, mode.clone())
+                            } else if click_role == "attacker" {
+                                let board_unupdated = render_hnefatafl_board_as_html(&game_at.board.clone());
+                                let process_result = game_at.process_click(click.row, click.col);
+                                let board_html = render_hnefatafl_board_as_html(&game_at.board);
+                                (board_unupdated, board_html, game_at.board_message.clone(), process_result, mode.clone())
+                            } else {
+                                let board_unupdated = render_hnefatafl_board_as_html(&game_at.board.clone());
+                                let process_result = game_at.process_click(click.row, click.col);
+                                let board_html = render_hnefatafl_board_as_html(&game_at.board);
+                                (board_unupdated, board_html, game_at.board_message.clone(), process_result, mode.clone())
+                            }
                         }
-                        GameVariant::Brandubh(game, mode) => {
-                            let process_result = game.process_click(click.row, click.col);
-                            let board_html = render_brandubh_board_as_html(&game.board);
-                            (board_html, game.board_message.clone(), process_result, mode.clone())
+                        GameVariant::Brandubh(game_at, game_def, mode) => {
+                            if click_role == "defender" {
+                                let board_unupdated = render_brandubh_board_as_html(&game_def.board.clone());
+                                let process_result = game_def.process_click(click.row, click.col);
+                                let board_html = render_brandubh_board_as_html(&game_def.board);
+                                (board_unupdated, board_html, game_def.board_message.clone(), process_result, mode.clone())
+                            } else if click_role == "attacker" {
+                                let board_unupdated = render_brandubh_board_as_html(&game_at.board.clone());
+                                let process_result = game_at.process_click(click.row, click.col);
+                                let board_html = render_brandubh_board_as_html(&game_at.board);
+                                (board_unupdated, board_html, game_at.board_message.clone(), process_result, mode.clone())
+                            } else {
+                                let board_unupdated = render_brandubh_board_as_html(&game_at.board.clone());
+                                let process_result = game_at.process_click(click.row, click.col);
+                                let board_html = render_brandubh_board_as_html(&game_at.board);
+                                (board_unupdated, board_html, game_at.board_message.clone(), process_result, mode.clone())
+                            }
                         }
                     };
+
 
                     match process_result {
                         Ok(_) => {
                             // Check if session_id exists in players
                             let session_id = &click.session_id;
-                                if let Some(username) = players.get(session_id) {
+                                if let Some((username, _role)) = players.get(session_id) {
                                     // Prepare the update message
                                     let update = serde_json::to_string(&serde_json::json!({
                                         "board_html": board_html,
@@ -682,6 +729,13 @@ async fn main() {
                                         "username": username,
                                     }))
                                     .unwrap();
+                                    
+                                    let update_unupdated = serde_json::to_string(&serde_json::json!({
+                                        "board_html": board_unupdated,
+                                        "board_message": board_message,
+                                        "username": username,
+                                    }))
+                                    .unwrap();                        
 
                                     // Access the channels map
                                     let channels = channels.read().await;
@@ -695,9 +749,14 @@ async fn main() {
                                                 }
                                             }
                                             GameMode::Online => {
-                                                // Only broadcast to the player who clicked
-                                                if let Some(player_channel) = game_channels.get(session_id) {
-                                                    let _ = player_channel.send(update);
+                                                // Send the update_unupdated to all other channels
+                                                for (sessions_id, channel) in game_channels.iter() {
+                                                    if sessions_id == session_id {
+                                                        let _ = channel.send(update.clone());
+                                                    }
+                                                    else {
+                                                        let _ = channel.send(update_unupdated.clone());
+                                                    }
                                                 }
                                             }
                                         }
