@@ -565,7 +565,7 @@ async fn main() {
                     .replace("{players_html}", &players_html)
                     .replace("</head>", &format!("{}\n</head>", session_script)); // Add session script to the head
 
-                Ok::<_, warp::Rejection>(warp::reply::html(response))
+                Ok::<_, warp::Rejection>(Response::builder().body(response).unwrap())
             },
         );
 
