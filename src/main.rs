@@ -196,7 +196,7 @@ async fn main() {
             }
 
             // If no session exists, redirect to login page (you can return a 404 or redirect)
-            Err(warp::reject::not_found())
+            Ok::<_, warp::Rejection>(Response::builder().status(404).body("Not Found".to_string()).unwrap())
         });
 
     // Handle POST request for signing out
@@ -457,6 +457,7 @@ async fn main() {
                 let mut players_html = String::new();
                 let mut player_username = String::new();
 
+                // Locate the game and populate its data
                 let found_game = games.iter().any(|game_option| {
                     game_option.as_ref().map_or(false, |game_variant| match game_variant {
                         GameVariant::Tablut(game_at, _game_def, _) => {
@@ -464,7 +465,6 @@ async fn main() {
                                 board_html = render_tablut_board_as_html(&game_at.board);
                                 board_message = game_at.board_message.clone();
                                 game_title = game_at.game_title.clone();
-                                // game_def = &game_at.clone();
                                 true
                             } else {
                                 false
@@ -493,54 +493,81 @@ async fn main() {
                     })
                 });
 
-                if found_game {
-                    {
-                        let mut channels = channels.write().await;
-                        let game_channels = channels.entry(id).or_insert_with(HashMap::new);
-
-                        for (session_id, _) in players.iter() {
-                            game_channels.entry(session_id.clone()).or_insert_with(|| {
-                                broadcast::channel::<String>(100).0
-                            });
-                        }
-                    }
-                    
-                    let session_html = session_id.clone();
-
-                    if let Some(session_id) = session_id {
-                        if let Some((username, role)) = players.get(&session_id) {
-                            player_username = username.clone();
-                            players_html.push_str(&format!("<p>{} {}</p>", username, role));
-                        }
-                    }
-
-                    let template_path = "templates/game.html";
-                    let template = read_html_template(template_path).unwrap();
-
-                    // Embed the session_id in a <script> tag in the response
-                    let session_script = if let Some(session_id) = session_html {
-                        format!(r#"<script>const session_id = "{}";</script>"#, session_id)
-                    } else {
-                        "<script>const session_id = null;</script>".to_string()
-                    };
-
-                    let response = template
-                        .replace("{game_title}", &game_title)
-                        .replace("{board_message}", &board_message)
-                        .replace("{board_html}", &board_html)
-                        .replace("{id}", &id.to_string())
-                        .replace("{player_username}", &player_username)
-                        .replace("{players_html}", &players_html)
-                        .replace("</head>", &format!("{}\n</head>", session_script)); // Add session script to the head
-
-                    Ok::<_, warp::Rejection>(warp::reply::html(response))
-                } else {
-                    Err(warp::reject::not_found())
+                // If the game is not found, return an error
+                if !found_game {
+                    let error_response = warp::http::Response::builder()
+                        .status(404) // Not Found
+                        .body("Game not found.".into())
+                        .unwrap();
+                    return Ok::<_, warp::Rejection>(error_response);
                 }
+
+                // If the game is found, proceed
+                // Get the list of players for the current game
+                let current_game_players: Vec<(String, String)> = players
+                    .iter()
+                    .filter(|(_, (_, role))| role.starts_with(&format!("game_{}", id)))
+                    .map(|(_, (username, role))| (username.clone(), role.clone()))  // Collecting usernames and roles
+                    .collect();
+
+                // Enforce player limit
+                if current_game_players.len() >= 2 {
+                    return Ok::<_, warp::Rejection>(
+                        warp::http::Response::builder()
+                            .status(403)
+                            .body("Game is already full. Maximum of two players allowed.".into())
+                            .unwrap(),
+                    );
+                }
+
+                // Update broadcast channels
+                {
+                    let mut channels = channels.write().await;
+                    let game_channels = channels.entry(id).or_insert_with(HashMap::new);
+
+                    for (player_session_id, _) in players.iter() {
+                        game_channels.entry(player_session_id.clone()).or_insert_with(|| {
+                            broadcast::channel::<String>(100).0
+                        });
+                    }
+                }
+
+                // Add current player to the list and render them
+                if let Some(session_id) = &session_id {
+                    if let Some((username, role)) = players.get(session_id) {
+                        player_username = username.clone();
+                        players_html.push_str(&format!("<p>{} ({})</p>", username, role));
+                    }
+                }
+
+                // Add all other players in the game
+                players_html.push_str(&current_game_players
+                    .iter()
+                    .map(|(username, role)| format!("<p>{} ({})</p>", username, role))
+                    .collect::<String>());
+
+                let template_path = "templates/game.html";
+                let template = read_html_template(template_path).unwrap();
+
+                // Embed the session_id in a <script> tag in the response
+                let session_script = if let Some(session_id) = session_id {
+                    format!(r#"<script>const session_id = "{}";</script>"#, session_id)
+                } else {
+                    "<script>const session_id = null;</script>".to_string()
+                };
+
+                let response = template
+                    .replace("{game_title}", &game_title)
+                    .replace("{board_message}", &board_message)
+                    .replace("{board_html}", &board_html)
+                    .replace("{id}", &id.to_string())
+                    .replace("{player_username}", &player_username)
+                    .replace("{players_html}", &players_html)
+                    .replace("</head>", &format!("{}\n</head>", session_script)); // Add session script to the head
+
+                Ok::<_, warp::Rejection>(warp::reply::html(response))
             },
         );
-
-
 
 
     // Endpoint: Join a game by ID
