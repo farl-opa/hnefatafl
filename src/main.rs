@@ -67,6 +67,12 @@ impl fmt::Display for MissingUsername {
 
 impl Reject for MissingUsername {}
 
+#[derive(Deserialize)]
+struct FormData {
+    game_mode: String,
+    side: String,
+}
+
 #[tokio::main]
 async fn main() {
     // Static file serving for images
@@ -249,6 +255,63 @@ async fn main() {
             // Return the template as a valid HTML response
             html(template)
         });
+
+    // Redirect endpoint
+    let redirect_endpoint = warp::path("redirect_endpoint")
+        .and(warp::post())
+        .and(state_filter.clone())
+        .and(warp::body::form()) // Parse form data
+        .and(warp::cookie::optional("session_id")) // Retrieve session_id from cookies
+        .and_then(|state: AppState, form: FormData, session_id: Option<String>| async move {
+            if let Some(session_id) = session_id {
+                let mut players = state.players.write().await; // Acquire write lock
+
+                if let Some(player_data) = players.get_mut(&session_id) {
+                    // Update the role field
+                    player_data.1 = form.side.clone();
+                } else {
+                    // Session ID not found in players map
+                    let response = warp::http::Response::builder()
+                        .status(400)
+                        .body("Session ID not found".to_string())
+                        .unwrap();
+                    return Ok::<warp::http::Response<String>, warp::Rejection>(response);
+                }
+            } else {
+                // No session ID provided
+                let response = warp::http::Response::builder()
+                    .status(400)
+                    .body("Missing session ID".to_string())
+                    .unwrap();
+                return Ok::<warp::http::Response<String>, warp::Rejection>(response);
+            }
+
+            // Determine redirect URL
+            let redirect_url = match (form.game_mode.as_str(), form.side.as_str()) {
+                ("hnefatafl", "attacker") => "/hnefatafl_redirect_online",
+                ("hnefatafl", "defender") => "/hnefatafl_redirect_online",
+                ("tablut", "attacker") => "/tablut_redirect_online",
+                ("tablut", "defender") => "/tablut_redirect_online",
+                ("brandubh", "attacker") => "/brandubh_redirect_online",
+                ("brandubh", "defender") => "/brandubh_redirect_online",
+                _ => return Ok::<_, warp::Rejection>(
+                    warp::http::Response::builder()
+                        .status(400)
+                        .body("Invalid game mode or role".into())
+                        .unwrap(),
+                ),
+            };
+
+            // Redirect response
+            let response = warp::http::Response::builder()
+                .status(302)
+                .header("Location", redirect_url)
+                .body("Redirecting...".into())
+                .unwrap();
+
+            Ok::<_, warp::Rejection>(response)
+        });
+
     
     // Endpoint: Create a new hnefataflgame and redirect to it
     let hnefatafl_redirect_local = warp::path("hnefatafl_redirect_local")
@@ -683,6 +746,7 @@ async fn main() {
         .or(board_updates)
         .or(join_game_by_id)
         .or(redirect_to_game)
+        .or(redirect_endpoint)
         .or(hnefatafl_redirect_local)
         .or(hnefatafl_redirect_online)
         .or(tablut_redirect_local)
