@@ -671,57 +671,6 @@ async fn main() {
     );
 
 
-    // // Endpoint: Make a move
-    // let make_move = warp::path("move")
-    //     .and(warp::post())
-    //     .and(warp::body::json())
-    //     .and(state_filter.clone())
-    //     .and_then(|move_request: MoveRequest, state: AppState| async move {
-    //         let mut games = state.games.write().await;
-
-    //         // Iterate over all games to find the one to process the move
-    //         for game_option in games.iter_mut() {
-    //             if let Some(game_variant) = game_option {
-    //                 // Match the game type and check the ID
-    //                 match game_variant {
-    //                     GameVariant::Tablut(game_at, game_def, _) if game_at.id == move_request.game_id => {
-    //                         return match game_at.make_move(move_request.from, move_request.to) {
-    //                             Ok(_) => Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
-    //                                 "success": true,
-    //                                 "game_state": game_at,
-    //                             }))),
-    //                             Err(e) => Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
-    //                                 "success": false,
-    //                                 "error": e,
-    //                             }))),
-    //                         };
-    //                     }
-    //                     GameVariant::Hnefatafl(game, _) if game.id == move_request.game_id => {
-    //                         return match game.make_move(move_request.from, move_request.to) {
-    //                             Ok(_) => Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
-    //                                 "success": true,
-    //                                 "game_state": game,
-    //                             }))),
-    //                             Err(e) => Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
-    //                                 "success": false,
-    //                                 "error": e,
-    //                             }))),
-    //                         };
-    //                     }
-    //                     _ => continue,
-    //                 }
-    //             }
-    //         }
-
-    //         // If no matching game was found
-    //         Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
-    //             "success": false,
-    //             "error": "Game not found or ended"
-    //         })))
-    //     });
-
-
-
     // Combine all routes
     let routes = static_files
         .or(username_form)
@@ -730,7 +679,6 @@ async fn main() {
         .or(sign_out_post)
         .or(rules)
         .or(new_game)
-        // .or(make_move)
         .or(cell_click)
         .or(board_updates)
         .or(join_game_by_id)
