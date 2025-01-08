@@ -38,6 +38,7 @@ pub enum GameMode {
 pub struct AppState {
     pub games: Arc<RwLock<Vec<Option<GameVariant>>>>, // Use Option to mark ended games
     pub players: Arc<RwLock<HashMap<String, (String, String)>>>, // Maps session IDs to usernames
+    pub player_game_map: Arc<RwLock<HashMap<String, usize>>>, // Maps session IDs to game IDs
 }
 
 #[derive(Clone, Debug)]
@@ -82,6 +83,7 @@ async fn main() {
     let state = AppState {
         games: Arc::new(RwLock::new(Vec::new())),
         players: Arc::new(RwLock::new(HashMap::new())),
+        player_game_map: Arc::new(RwLock::new(HashMap::new())),
     };
 
     let state_filter = warp::any().map(move || state.clone());
@@ -450,12 +452,13 @@ async fn main() {
             session_id: Option<String>| async move {
                 let games = state.games.write().await;
                 let players = state.players.read().await;
+                let mut mapping = state.player_game_map.write().await;
 
                 let mut board_html = String::new();
                 let mut board_message = String::new();
                 let mut game_title = String::new();
                 let mut players_html = String::new();
-                let mut player_username = String::new();
+                let player_username = String::new();
 
                 // Locate the game and populate its data
                 let found_game = games.iter().any(|game_option| {
@@ -465,6 +468,7 @@ async fn main() {
                                 board_html = render_tablut_board_as_html(&game_at.board);
                                 board_message = game_at.board_message.clone();
                                 game_title = game_at.game_title.clone();
+                                mapping.insert(session_id.clone().unwrap(), id);
                                 true
                             } else {
                                 false
@@ -475,6 +479,7 @@ async fn main() {
                                 board_html = render_hnefatafl_board_as_html(&game_at.board);
                                 board_message = game_at.board_message.clone();
                                 game_title = game_at.game_title.clone();
+                                mapping.insert(session_id.clone().unwrap(), id);
                                 true
                             } else {
                                 false
@@ -485,6 +490,7 @@ async fn main() {
                                 board_html = render_brandubh_board_as_html(&game_at.board);
                                 board_message = game_at.board_message.clone();
                                 game_title = game_at.game_title.clone();
+                                mapping.insert(session_id.clone().unwrap(), id);
                                 true
                             } else {
                                 false
@@ -502,16 +508,18 @@ async fn main() {
                     return Ok::<_, warp::Rejection>(error_response);
                 }
 
-                // If the game is found, proceed
-                // Get the list of players for the current game
-                let current_game_players: Vec<(String, String)> = players
-                    .iter()
-                    .filter(|(_, (_, role))| role.starts_with(&format!("game_{}", id)))
-                    .map(|(_, (username, role))| (username.clone(), role.clone()))  // Collecting usernames and roles
-                    .collect();
+                let mut current_game_players: Vec<(String, String)> = Vec::new();
 
+                for (session_id, game_id) in mapping.iter() {
+                    if game_id == &id {
+                        if let Some((username, role)) = players.get(session_id) {
+                            current_game_players.push((username.clone(), role.clone()));
+                        }
+                    }
+                }
+                println!("{:?}", current_game_players.len());
                 // Enforce player limit
-                if current_game_players.len() >= 2 {
+                if current_game_players.len() > 2 {
                     return Ok::<_, warp::Rejection>(
                         warp::http::Response::builder()
                             .status(403)
@@ -529,14 +537,6 @@ async fn main() {
                         game_channels.entry(player_session_id.clone()).or_insert_with(|| {
                             broadcast::channel::<String>(100).0
                         });
-                    }
-                }
-
-                // Add current player to the list and render them
-                if let Some(session_id) = &session_id {
-                    if let Some((username, role)) = players.get(session_id) {
-                        player_username = username.clone();
-                        players_html.push_str(&format!("<p>{} ({})</p>", username, role));
                     }
                 }
 
