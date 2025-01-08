@@ -646,7 +646,7 @@ async fn main() {
 
             let mut games = state.games.write().await;
 
-            let mut move_made = false;
+            let move_made: bool;
 
             // Check if the game exists and process the click
             if let Some(game_option) = games.iter_mut().find(|game_option| {
