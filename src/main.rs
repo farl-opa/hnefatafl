@@ -334,7 +334,7 @@ async fn main() {
         });
 
     let hnefatafl_redirect_online = warp::path("hnefatafl_redirect_online")
-        .and(warp::post())
+        .and(warp::get())
         .and(state_filter.clone())
         .and_then(|state: AppState| async move {
             let mut games = state.games.write().await;
@@ -373,7 +373,7 @@ async fn main() {
         });
 
     let tablut_redirect_online = warp::path("tablut_redirect_online")
-        .and(warp::post())
+        .and(warp::get())
         .and(state_filter.clone())
         .and_then(|state: AppState| async move {
             let mut games = state.games.write().await;
@@ -412,7 +412,7 @@ async fn main() {
         });
 
     let brandubh_redirect_online = warp::path("brandubh_redirect_online")
-        .and(warp::post())
+        .and(warp::get())
         .and(state_filter.clone())
         .and_then(|state: AppState| async move {
             let mut games = state.games.write().await;
