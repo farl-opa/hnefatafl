@@ -584,8 +584,23 @@ async fn main() {
     // Endpoint: Redirect to a game by ID
     let redirect_to_game = warp::path!("redirect" / usize)
         .and(state_filter.clone())
-        .and_then(|game_id: usize, state: AppState| async move {
+        .and(warp::header::headers_cloned()) 
+        .and_then(|game_id: usize, state: AppState, headers: warp::http::HeaderMap| async move {
             let games = state.games.read().await;
+            let mut players = state.players.write().await;
+            let mapping = state.player_game_map.write().await;
+            let player_id: String;
+            if let Some(session_id) = get_session_id_from_cookie(&headers) {
+                player_id = session_id;
+                println!("Player ID: {}", player_id);
+            } else {
+                return Ok::<_, warp::Rejection>(
+                    warp::http::Response::builder()
+                        .status(400)
+                        .body("Missing session ID".to_string())
+                        .unwrap(),
+                );
+            }            
 
             // Check if there's a game with the given ID and if it's in online mode
             let game_exists_and_online = games.iter().any(|game_option| {
@@ -598,18 +613,50 @@ async fn main() {
             });
 
             if game_exists_and_online {
+                // Find the rival's role and assign opposite
+                let rival_id = mapping.iter().find_map(|(key, &val)| {
+                    if val == game_id && key != &player_id {
+                        Some(key)
+                    } else {
+                        None
+                    }
+                }).unwrap();
+
+                let rival_role = players.get(rival_id).unwrap().1.clone();
+                let own_role: String;
+
+                if rival_role == "attacker" {
+                    own_role = "defender".to_string();
+                } else {
+                    own_role = "attacker".to_string();
+                }
+
+                // Update the player's role
+                for (session_id, (_username, role)) in players.iter_mut() {
+                    if session_id == &player_id {
+                        // Update the second string
+                        *role = own_role.clone();
+                        let response = warp::http::Response::builder()
+                            .status(302)
+                            .header("Location", format!("/game/{}", game_id))
+                            .body("Redirecting to game...".to_string())
+                            .unwrap();
+                        return Ok::<_, warp::Rejection>(response); // Exit after updating
+                    }
+                }
+
                 // Redirect to the game
                 let response = warp::http::Response::builder()
                     .status(302)
                     .header("Location", format!("/game/{}", game_id))
-                    .body("Redirecting to game...")
+                    .body("Redirecting to game...".to_string())
                     .unwrap();
                 Ok::<_, warp::Rejection>(response)
             } else {
                 // Return error message if the game is not online or doesn't exist
                 let error_response = warp::http::Response::builder()
                     .status(400) // Bad Request
-                    .body("Cannot connect to game. Either the game does not exist or is not online.")
+                    .body("Cannot connect to game. Either the game does not exist or is not online.".to_string())
                     .unwrap();
                 Ok::<_, warp::Rejection>(error_response)
             }
