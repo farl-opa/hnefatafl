@@ -517,7 +517,7 @@ async fn main() {
                         }
                     }
                 }
-                println!("{:?}", current_game_players.len());
+
                 // Enforce player limit
                 if current_game_players.len() > 2 {
                     return Ok::<_, warp::Rejection>(
@@ -674,6 +674,7 @@ async fn main() {
             let mut games = state.games.write().await;
 
             let move_made: bool;
+            let current_turn: String;
 
             // Check if the game exists and process the click
             if let Some(game_option) = games.iter_mut().find(|game_option| {
@@ -690,54 +691,94 @@ async fn main() {
                 if let Some(game_variant) = game_option {
                     let (board_unupdated, board_html, board_message, process_result, game_mode) = match game_variant {
                         GameVariant::Tablut(game_at, game_def, mode) => {
-                            if click_role == "defender" {
-                                let board_unupdated = render_tablut_board_as_html(&game_def.board.clone());
-                                let process_result = game_def.process_click(click.row, click.col);
-                                let _unproccessed_result = game_at.process_click(click.row, click.col);
-                                let board_html = render_tablut_board_as_html(&game_def.board);
-                                move_made = game_at.move_done;
-                                (board_unupdated, board_html, game_def.board_message.clone(), process_result, mode.clone())
+
+                            if game_at.current_turn.cell_type == TablutCellType::Defender {
+                                current_turn = "defender".to_string();
                             } else {
-                                let board_unupdated = render_tablut_board_as_html(&game_at.board.clone());
-                                let process_result = game_at.process_click(click.row, click.col);
-                                let _unproccessed_result = game_def.process_click(click.row, click.col);
-                                let board_html = render_tablut_board_as_html(&game_at.board);
-                                move_made = game_at.move_done;
-                                (board_unupdated, board_html, game_at.board_message.clone(), process_result, mode.clone())
+                                current_turn = "attacker".to_string();
                             }
+
+                            if click_role == &current_turn {
+                                if click_role == "defender" {
+                                    let board_unupdated = render_tablut_board_as_html(&game_def.board.clone());
+                                    let process_result = game_def.process_click(click.row, click.col);
+                                    let _unproccessed_result = game_at.process_click(click.row, click.col);
+                                    let board_html = render_tablut_board_as_html(&game_def.board);
+                                    move_made = game_at.move_done;
+                                    (board_unupdated, board_html, game_def.board_message.clone(), process_result, mode.clone())
+                                } else {
+                                    let board_unupdated = render_tablut_board_as_html(&game_at.board.clone());
+                                    let process_result = game_at.process_click(click.row, click.col);
+                                    let _unproccessed_result = game_def.process_click(click.row, click.col);
+                                    let board_html = render_tablut_board_as_html(&game_at.board);
+                                    move_made = game_at.move_done;
+                                    (board_unupdated, board_html, game_at.board_message.clone(), process_result, mode.clone())
+                                }
+                            } else {
+                                return Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+                                    "success": false,
+                                    "error": "Not your turn",
+                                })));
+                            }                            
                         }
                         GameVariant::Hnefatafl(game_at, game_def, mode) => {
-                            if click_role == "defender" {
-                                let board_unupdated = render_hnefatafl_board_as_html(&game_def.board.clone());
-                                let process_result = game_def.process_click(click.row, click.col);
-                                let _unproccessed_result = game_at.process_click(click.row, click.col);
-                                let board_html = render_hnefatafl_board_as_html(&game_def.board);
-                                move_made = game_at.move_done;
-                                (board_unupdated, board_html, game_def.board_message.clone(), process_result, mode.clone())
+                            if game_at.current_turn.cell_type == HnefataflCellType::Defender {
+                                current_turn = "defender".to_string();
                             } else {
-                                let board_unupdated = render_hnefatafl_board_as_html(&game_at.board.clone());
-                                let process_result = game_at.process_click(click.row, click.col);
-                                let _unproccessed_result = game_def.process_click(click.row, click.col);
-                                let board_html = render_hnefatafl_board_as_html(&game_at.board);
-                                move_made = game_at.move_done;
-                                (board_unupdated, board_html, game_at.board_message.clone(), process_result, mode.clone())
+                                current_turn = "attacker".to_string();
+                            }
+
+                            if click_role == &current_turn {
+                                if click_role == "defender" {
+                                    let board_unupdated = render_hnefatafl_board_as_html(&game_def.board.clone());
+                                    let process_result = game_def.process_click(click.row, click.col);
+                                    let _unproccessed_result = game_at.process_click(click.row, click.col);
+                                    let board_html = render_hnefatafl_board_as_html(&game_def.board);
+                                    move_made = game_at.move_done;
+                                    (board_unupdated, board_html, game_def.board_message.clone(), process_result, mode.clone())
+                                } else {
+                                    let board_unupdated = render_hnefatafl_board_as_html(&game_at.board.clone());
+                                    let process_result = game_at.process_click(click.row, click.col);
+                                    let _unproccessed_result = game_def.process_click(click.row, click.col);
+                                    let board_html = render_hnefatafl_board_as_html(&game_at.board);
+                                    move_made = game_at.move_done;
+                                    (board_unupdated, board_html, game_at.board_message.clone(), process_result, mode.clone())
+                                }
+                            } else {
+                                return Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+                                    "success": false,
+                                    "error": "Not your turn",
+                                })));
                             }
                         }
                         GameVariant::Brandubh(game_at, game_def, mode) => {
-                            if click_role == "defender" {
-                                let board_unupdated = render_brandubh_board_as_html(&game_def.board.clone());
-                                let process_result = game_def.process_click(click.row, click.col);
-                                let _unproccessed_result = game_at.process_click(click.row, click.col);
-                                let board_html = render_brandubh_board_as_html(&game_def.board);
-                                move_made = game_at.move_done;
-                                (board_unupdated, board_html, game_def.board_message.clone(), process_result, mode.clone())
+                            if game_at.current_turn.cell_type == BrandubhCellType::Defender {
+                                current_turn = "defender".to_string();
                             } else {
-                                let board_unupdated = render_brandubh_board_as_html(&game_at.board.clone());
-                                let process_result = game_at.process_click(click.row, click.col);
-                                let _unproccessed_result = game_def.process_click(click.row, click.col);
-                                let board_html = render_brandubh_board_as_html(&game_at.board);
-                                move_made = game_at.move_done;
-                                (board_unupdated, board_html, game_at.board_message.clone(), process_result, mode.clone())
+                                current_turn = "attacker".to_string();
+                            }
+
+                            if click_role == &current_turn {
+                                if click_role == "defender" {
+                                    let board_unupdated = render_brandubh_board_as_html(&game_def.board.clone());
+                                    let process_result = game_def.process_click(click.row, click.col);
+                                    let _unproccessed_result = game_at.process_click(click.row, click.col);
+                                    let board_html = render_brandubh_board_as_html(&game_def.board);
+                                    move_made = game_at.move_done;
+                                    (board_unupdated, board_html, game_def.board_message.clone(), process_result, mode.clone())
+                                } else {
+                                    let board_unupdated = render_brandubh_board_as_html(&game_at.board.clone());
+                                    let process_result = game_at.process_click(click.row, click.col);
+                                    let _unproccessed_result = game_def.process_click(click.row, click.col);
+                                    let board_html = render_brandubh_board_as_html(&game_at.board);
+                                    move_made = game_at.move_done;
+                                    (board_unupdated, board_html, game_at.board_message.clone(), process_result, mode.clone())
+                                }
+                            } else {
+                                return Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+                                    "success": false,
+                                    "error": "Not your turn",
+                                })));
                             }
                         }
                     };
