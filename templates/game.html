@@ -34,21 +34,29 @@
             margin: 15px 0;
         }
 
-        h4 {
-            font-size: 1.2rem;
-            color: #444;
+        .main-container {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: flex-start;
+            width: 90%;
+            max-width: 1200px;
             margin-top: 20px;
         }
 
-        .player-list {
+        .board-container {
+            flex: 3; /* Game board takes up more space */
+            margin-right: 20px;
+        }
+
+        .player-list-container {
+            flex: 1; /* Player list takes up less space */
             background: #fff;
             border: 1px solid #ccc;
             border-radius: 8px;
             padding: 10px;
-            width: 90%;
-            max-width: 400px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            margin-bottom: 20px;
+            max-width: 300px;
         }
 
         table {
@@ -73,10 +81,6 @@
             height: 35px;
         }
 
-        .empty { background-color: #f0f0f0; }
-        .attacker { background-color: #ffdddd; }
-        .defender { background-color: #d3e5ff; }
-        .king { background-color: #ffe8b3; }
         .corner-cell { background-color: #8cf367; }
         .throne-cell { background-color: #d53e3e; }
         .selected-cell { background-color: #8c8c8c; }
@@ -95,18 +99,6 @@
         .coordinates {
             font-size: 12px;
             color: #888;
-        }
-
-        .container {
-            max-width: 800px;
-            width: 100%;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        form {
-            margin-top: 20px;
-            text-align: center;
         }
 
         button {
@@ -162,14 +154,16 @@
 </head>
 <body>
     <h1>{game_title}</h1>
-    <h2>Game ID: {id}</h2>
-    <h3>{board_message}</h3>
-    <h4>Players Online</h4>
-    <div class="player-list">
-        {players_html}
-    </div>
-    <div id="board-container" class="container">
-        {board_html}
+    <div class="main-container">
+        <div class="board-container" id="board-container">
+            {board_html}
+        </div>
+        <div class="player-list-container">
+            <h2>Game ID: {id}</h2>
+            <h3>{board_message}</h3>
+            <h4>Players Online</h4>
+            {players_html}
+        </div>
     </div>
 </body>
 </html>

@@ -7,80 +7,108 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
             margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f9f9f9;
+            color: #333;
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin: 20px 0;
             text-align: center;
         }
+
         .container {
             display: flex;
-            justify-content: space-between;
-            width: 80%;
-            max-width: 1000px;
+            justify-content: center;
+            flex-wrap: wrap;
+            max-width: 800px;
+            width: 100%;
+            margin: 20px auto;
         }
+
         .column {
-            flex: 1; /* Each column gets an equal share of space */
-            padding: 20px;
+            flex: 1;
+            min-width: 300px;
+            margin: 10px;
             box-sizing: border-box;
         }
-        .left {
-            background-color: #f8f9fa; 
-        }
-        .center {
-            background-color: #ffffff;
-            text-align: center; 
-        }
-        .right {
-            background-color: #f1f3f5; 
-            text-align: right;
-        }
-        h1, h2 {
+
+        .column h2 {
+            font-size: 1.5rem;
             margin-bottom: 20px;
+            text-align: center;
         }
-        p {
-            font-size: 18px;
-            margin: 5px 0;
+
+        .options {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
+
+        .options form {
+            margin-bottom: 15px;
+            width: 100%;
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            background-color: #007BFF;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
         .player-list {
-            margin-top: 20px;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
         }
+
         .player-list p {
             margin: 5px 0;
-        }
-        form {
-            margin-top: 20px;
-        }
-        button {
-            padding: 10px 20px;
-            font-size: 16px;
-            cursor: pointer;
         }
     </style>
 </head>
 <body>
+    <h1>{welcome_message}</h1>
     <div class="container">
-        <div class="center-column">
-            <h1>{welcome_message}</h1>
-            <form action="/game_mode_local" method="post">
-                <button type="submit">2 Player</button>
-            </form>
-            <form action="/game_mode_online" method="post">
-                <button type="submit">Play online</button>
-            </form>
-            <form action="/join" method="post">
-                <button type="submit">Join Game</button>
-            </form>
-            <form action="/rules" method="get">
-                <button type="submit">Game Rules</button>
-            </form>
-            <form action="/signout" method="post">
-                <input type="hidden" name="session_id" value="{session_id}">
-                <button type="submit">Sign Out</button>
-            </form>
+        <div class="column">
+            <div class="options">
+                <form action="/game_mode_local" method="post">
+                    <button type="submit">Play Locally</button>
+                </form>
+                <form action="/game_mode_online" method="post">
+                    <button type="submit">Play Online</button>
+                </form>
+                <form action="/join" method="post">
+                    <button type="submit">Join Game</button>
+                </form>
+                <form action="/rules" method="get">
+                    <button type="submit">Game Rules</button>
+                </form>
+                <form action="/signout" method="post">
+                    <input type="hidden" name="session_id" value="{session_id}">
+                    <button type="submit">Sign Out</button>
+                </form>
+            </div>
         </div>
-        <div class="right-column">
+        <div class="column">
             <h2>Players Online</h2>
             <div class="player-list">
                 {players_html}
