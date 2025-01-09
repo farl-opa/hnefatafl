@@ -745,7 +745,7 @@ async fn main() {
                                 current_turn = "attacker".to_string();
                             }
 
-                            if click_role == &current_turn {
+                            if click_role == &current_turn || click_role == "local" {
                                 if click_role == "defender" {
                                     let board_unupdated = render_tablut_board_as_html(&game_def.board.clone());
                                     let process_result = game_def.process_click(click.row, click.col);
@@ -775,7 +775,7 @@ async fn main() {
                                 current_turn = "attacker".to_string();
                             }
 
-                            if click_role == &current_turn {
+                            if click_role == &current_turn || click_role == "local"  {
                                 if click_role == "defender" {
                                     let board_unupdated = render_hnefatafl_board_as_html(&game_def.board.clone());
                                     let process_result = game_def.process_click(click.row, click.col);
@@ -805,7 +805,7 @@ async fn main() {
                                 current_turn = "attacker".to_string();
                             }
 
-                            if click_role == &current_turn {
+                            if click_role == &current_turn || click_role == "local"  {
                                 if click_role == "defender" {
                                     let board_unupdated = render_brandubh_board_as_html(&game_def.board.clone());
                                     let process_result = game_def.process_click(click.row, click.col);
