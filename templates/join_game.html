@@ -3,57 +3,85 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Join Game</title>
     <style>
         body {
             font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: flex-start;
-            height: 100vh;
-            margin: 0;
-            text-align: center;
-            overflow: auto
+            background-color: #f9f9f9;
+            color: #333;
         }
+
+        h1 {
+            font-size: 2rem;
+            margin: 20px 0;
+            text-align: center;
+        }
+
         .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            max-width: 500px;
             width: 100%;
-            max-width: 600px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
-        h1, h2 {
-            margin-bottom: 20px;
-        }
-        p, ul {
-            text-align: center;
-            margin-bottom: 1.2em;
-            max-width: 400px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-        ul {
-            list-style-position: inside;
-            padding: 0;
-        }
-        ul li {
-            display: block;
-            text-align: left;
-        }
+
         form {
+            width: 80%;
+            text-align: center;
             margin-top: 20px;
         }
-        button {
-            padding: 10px 20px;
+
+        label {
+            font-size: 1rem;
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        input[type="text"] {
+            width: calc(100% - 20px);
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
             font-size: 16px;
+        }
+
+        button {
+            width: 60%;
+            padding: 10px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            background-color: #007BFF;
+            color: white;
             cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #0056b3;
         }
     </style>
-    <title>Join Game</title>
 </head>
 <body>
-    <h1 style="text-align: center;">Join Game</h1>
-    <form action="/join_game" method="post" style="text-align: center; margin-top: 20px; margin-bottom: 20px;">
-        <label for="game_id">Enter Game ID:</label>
-        <input type="text" id="game_id" name="game_id" required>
-        <button type="submit" formaction="/redirect">Join</button>
+    <div class="container">
+        <h1>Join Game</h1>
+        <form action="/join_game" method="post">
+            <label for="game_id">Enter Game ID:</label>
+            <input type="text" id="game_id" name="game_id" required>
+            <button type="submit" formaction="/redirect">Join</button>
+        </form>
+    </div>
     <script>
         document.querySelector('form').addEventListener('submit', function(event) {
             event.preventDefault();
@@ -61,6 +89,5 @@
             window.location.href = `/redirect/${gameId}`;
         });
     </script>
-    </form>
 </body>
 </html>

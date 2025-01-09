@@ -7,47 +7,66 @@
     <style>
         body {
             font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: flex-start;
-            margin: 0;
-            text-align: center;
-            overflow: auto;
+            background-color: #f9f9f9;
+            color: #333;
         }
+
+        h1 {
+            font-size: 2rem;
+            margin: 20px 0;
+            text-align: center;
+        }
+
         .container {
-            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
             max-width: 1000px;
+            width: 100%;
+            margin: 20px auto;
+            padding: 20px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
-        .header {
-            text-align: center;
-            margin-bottom: 20px;
-        }
+
         .description {
             text-align: center;
             margin-bottom: 40px;
             padding: 0 20px;
         }
+
         .columns {
             display: flex;
-            flex-direction: row;
-            justify-content: space-between;
+            flex-direction: column;
             gap: 20px;
+            width: 100%;
         }
+
+        @media (min-width: 768px) {
+            .columns {
+                flex-direction: row;
+            }
+        }
+
         .column {
             flex: 1;
             padding: 20px;
-            box-sizing: border-box;
+            background: #f8f9fa;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
-        .left {
-            background-color: #f8f9fa; 
-        }
-        .right {
-            background-color: #f1f3f5; 
-        }
-        h1, h2 {
+
+        .column h2 {
+            font-size: 1.5rem;
             margin-bottom: 20px;
         }
+
         ul {
             list-style-position: inside;
             padding: 0;
@@ -55,30 +74,42 @@
             margin-bottom: 1.2em;
             text-align: left;
         }
+
         ul li {
             margin-bottom: 10px;
         }
+
         .back-link {
             margin-top: 20px;
-            margin-bottom: 20px;
+            width: 100%;
+            text-align: center;
         }
-        .back-button {
-            padding: 10px 20px;
+
+        button {
+            width: 30%;
+            padding: 10px;
             font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            background-color: #007BFF;
+            color: white;
             cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #0056b3;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>Hnefatafl Game Rules</h1>
-        </div>
+        <h1>Hnefatafl Game Rules</h1>
         <div class="description">
             <p>Hnefatafl is an ancient Norse strategy board game. Two sides compete in an asymmetrical battle. The Defenders protect their King, while the Attackers attempt to capture him.</p>
         </div>
         <div class="columns">
-            <div class="column left">
+            <div class="column">
                 <h2>Variants</h2>
                 <ul>
                     <li><strong>Hnefatafl:</strong> Played on an 11x11 board.</li>
@@ -96,27 +127,20 @@
                     <li>Defenders are symmetrically placed around the King.</li>
                     <li>Attackers are placed on the board edges, forming a cross-like pattern.</li>
                 </ul>
+            </div>
+            <div class="column">
                 <h2>Movement</h2>
                 <ul>
                     <li>All pieces move horizontally or vertically, like a rook in chess.</li>
                     <li>Pieces cannot move through or land on other pieces.</li>
                     <li>Only the King may occupy the Throne or escape to a corner square.</li>
-                    <li>All pieces can move through the throne if it is not occupied.</li>
+                    <li>All pieces can move through the Throne if it is not occupied.</li>
                 </ul>
-            </div>
-            <div class="column right">
                 <h2>Capturing</h2>
                 <ul>
                     <li>A piece is captured by being sandwiched between two opposing pieces.</li>
-                    <li>In Hnefatalf (11x11) and Tablut (9x9), the King is captured by surrounding him on all four sides.</li>
-                    <li>In Brandubh (7x7), the King is captured by surrounding him on two opposite sides (like any other piece).</li>
-                    <li>If adjacent to the Throne or an edge, the King is captured when surrounded on the remaining three sides.</li>
-                </ul>
-                <h2>Reinforced Corners Rule</h2>
-                <ul>
-                    <li>The Throne and corners can act as allies for capturing enemy pieces. For example, if an Attacker is sandwiched between a Defender and a corner, the Attacker is captured.</li>
-                    <li>When the Throne is occupied it can only act as an ally for capturing the Attacker's pieces, when the Throne is not occupied it can act as an ally for captures for both sides.</li>
-                    <li>In Brandubh (7x7) the Throne does not act as an ally for capturing opposition pieces.</li>
+                    <li>The King is captured differently depending on the variant played.</li>
+                    <li>In Brandubh (7x7), the King is captured when surrounded on two sides like any other piece.</li>
                 </ul>
                 <h2>Game End</h2>
                 <ul>
@@ -127,7 +151,7 @@
         </div>
         <div class="back-link">
             <form action="/main" method="get">
-                <button type="submit" class="back-button">Back to Home</button>
+                <button type="submit">Back to Home</button>
             </form>
         </div>
     </div>
