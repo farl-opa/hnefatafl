@@ -592,7 +592,6 @@ async fn main() {
             let player_id: String;
             if let Some(session_id) = get_session_id_from_cookie(&headers) {
                 player_id = session_id;
-                println!("Player ID: {}", player_id);
             } else {
                 return Ok::<_, warp::Rejection>(
                     warp::http::Response::builder()
