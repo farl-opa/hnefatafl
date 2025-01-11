@@ -188,28 +188,28 @@ impl GameState {
                 for cell in self.board.iter_mut().flat_map(|r| r.iter_mut()) {
                         cell.is_possible_move = false;
                     }
-                return Err("Select a piece to move.".to_string());
+                return Ok(());
             }
             else if clicked_cell.cell_type == CellType::Defender && self.current_turn.cell_type == CellType::Attacker {
                 self.board[self.last_click.0][self.last_click.1].is_selected = false;
                 for cell in self.board.iter_mut().flat_map(|r| r.iter_mut()) {
                         cell.is_possible_move = false;
                     }
-                return Err("Cannot move the defender's piece.".to_string());
+                return Ok(());
             }
             else if clicked_cell.cell_type == CellType::King && self.current_turn.cell_type == CellType::Attacker {
                 self.board[self.last_click.0][self.last_click.1].is_selected = false;
                 for cell in self.board.iter_mut().flat_map(|r| r.iter_mut()) {
                         cell.is_possible_move = false;
                     }
-                return Err("Cannot move the defender's piece.".to_string());
+                return Ok(());
             }
             else if clicked_cell.cell_type == CellType::Attacker && self.current_turn.cell_type == CellType::Defender {
                 self.board[self.last_click.0][self.last_click.1].is_selected = false;
                 for cell in self.board.iter_mut().flat_map(|r| r.iter_mut()) {
                         cell.is_possible_move = false;
                     }
-                return Err("Cannot move the attacker's piece.".to_string());
+                return Ok(());
             }
             else {
                 self.click_count += 1;
@@ -225,12 +225,30 @@ impl GameState {
         } else {
             // Second click: Select an empty cell to move to
             if clicked_cell.cell_type != CellType::Empty {
-                self.click_count -= 1;
-                self.board[self.last_click.0][self.last_click.1].is_selected = false;
-                for cell in self.board.iter_mut().flat_map(|r| r.iter_mut()) {
+
+                if self.board[self.last_click.0][self.last_click.1].cell_type == clicked_cell.cell_type {
+                    for cell in self.board.iter_mut().flat_map(|r| r.iter_mut()) {
                         cell.is_possible_move = false;
                     }
-                return Err("Select an empty cell to move to.".to_string());
+                    self.board[self.last_click.0][self.last_click.1].is_selected = false;  
+                    self.board[row][col].is_selected = true;                                                    
+                    self.last_click = (row, col);
+                    self.from = (row, col);
+                    let possible_moves = self.calculate_valid_moves(self.from);
+
+                    for cell in possible_moves {
+                        self.board[cell.0][cell.1].is_possible_move = true;
+                    }
+                    self.move_done = false;
+                } else {
+                    self.click_count -= 1;
+                    self.board[self.last_click.0][self.last_click.1].is_selected = false;
+                    for cell in self.board.iter_mut().flat_map(|r| r.iter_mut()) {
+                            cell.is_possible_move = false;
+                        }
+                }
+                
+                return Ok(());
             }
             else if clicked_cell.is_corner && self.board[self.from.0][self.from.1].cell_type != CellType::King {
                 self.click_count -= 1;
@@ -238,7 +256,7 @@ impl GameState {
                 for cell in self.board.iter_mut().flat_map(|r| r.iter_mut()) {
                         cell.is_possible_move = false;
                     }
-                return Err("Cannot move to the corner.".to_string());
+                return Ok(());
             }
             else if clicked_cell.is_throne && self.board[self.from.0][self.from.1].cell_type != CellType::King {
                 self.click_count -= 1;
@@ -246,7 +264,7 @@ impl GameState {
                 for cell in self.board.iter_mut().flat_map(|r| r.iter_mut()) {
                         cell.is_possible_move = false;
                     }
-                return Err("Cannot move to the throne.".to_string());
+                return Ok(());
             }
             else {
                 // Make the move
@@ -326,7 +344,11 @@ impl GameState {
     pub fn make_move(&mut self, from: (usize, usize), to: (usize, usize)) -> Result<(), String> {    
         // Validate the move
         if !self.is_valid_move(from, to) {
-            return Err("Invalid move.".to_string());
+            self.board[self.last_click.0][self.last_click.1].is_selected = false;
+            for cell in self.board.iter_mut().flat_map(|r| r.iter_mut()) {
+                    cell.is_possible_move = false;
+                }
+            return Ok(());
         }
     
         // Make the move
