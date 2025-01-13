@@ -296,8 +296,8 @@ async fn main() {
             let redirect_url = match (form.game_mode.as_str(), form.side.as_str()) {
                 ("hnefatafl", "attacker") => "/hnefatafl_redirect_online",
                 ("hnefatafl", "defender") => "/hnefatafl_redirect_online",
-                ("koch", "attacker") => "/hnefatafl_redirect_online",
-                ("koch", "defender") => "/hnefatafl_redirect_online",
+                ("koch", "attacker") => "/koch_redirect_online",
+                ("koch", "defender") => "/koch_redirect_online",
                 ("tablut", "attacker") => "/tablut_redirect_online",
                 ("tablut", "defender") => "/tablut_redirect_online",
                 ("brandubh", "attacker") => "/brandubh_redirect_online",
