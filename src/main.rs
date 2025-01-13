@@ -22,10 +22,15 @@ mod tablut;
 use tablut::{GameState as TablutGameState, Cell as TablutCell, CellType as TablutCellType};
 
 mod hnefatafl;
-use hnefatafl::{GameState as HnefataflGameState, Cell as HnefataflCell, CellType as HnefataflCellType};
+// use hnefatafl::{GameState as HnefataflGameState, Cell as HnefataflCell, CellType as HnefataflCellType};
 
 mod brandubh;
 use brandubh::{GameState as BrandubhGameState, Cell as BrandubhCell, CellType as BrandubhCellType};
+
+mod koch;
+// use koch::{GameState as KochGameState, Cell as KochCell, CellType as KochCellType};
+use koch::{GameState as HnefataflGameState, Cell as HnefataflCell, CellType as HnefataflCellType};
+
 use rand::Rng;
 
 #[derive(Clone, Copy, Debug)]
