@@ -22,14 +22,13 @@ mod tablut;
 use tablut::{GameState as TablutGameState, Cell as TablutCell, CellType as TablutCellType};
 
 mod hnefatafl;
-// use hnefatafl::{GameState as HnefataflGameState, Cell as HnefataflCell, CellType as HnefataflCellType};
+use hnefatafl::{GameState as HnefataflGameState, Cell as HnefataflCell, CellType as HnefataflCellType};
 
 mod brandubh;
 use brandubh::{GameState as BrandubhGameState, Cell as BrandubhCell, CellType as BrandubhCellType};
 
 mod koch;
-// use koch::{GameState as KochGameState, Cell as KochCell, CellType as KochCellType};
-use koch::{GameState as HnefataflGameState, Cell as HnefataflCell, CellType as HnefataflCellType};
+use koch::{GameState as KochGameState, Cell as KochCell, CellType as KochCellType};
 
 use rand::Rng;
 
@@ -51,6 +50,7 @@ pub enum GameVariant {
     Tablut(TablutGameState, TablutGameState, GameMode),
     Hnefatafl(HnefataflGameState, HnefataflGameState, GameMode),
     Brandubh(BrandubhGameState, BrandubhGameState, GameMode),
+    Koch(KochGameState, KochGameState, GameMode),
 }
 
 
@@ -229,7 +229,6 @@ async fn main() {
 
 
     // Endpoint: Display the rules
-
     let rules = warp::path("rules")
         .and(warp::get())
         .map(move || {
@@ -297,6 +296,8 @@ async fn main() {
             let redirect_url = match (form.game_mode.as_str(), form.side.as_str()) {
                 ("hnefatafl", "attacker") => "/hnefatafl_redirect_online",
                 ("hnefatafl", "defender") => "/hnefatafl_redirect_online",
+                ("koch", "attacker") => "/hnefatafl_redirect_online",
+                ("koch", "defender") => "/hnefatafl_redirect_online",
                 ("tablut", "attacker") => "/tablut_redirect_online",
                 ("tablut", "defender") => "/tablut_redirect_online",
                 ("brandubh", "attacker") => "/brandubh_redirect_online",
@@ -347,6 +348,45 @@ async fn main() {
             let mut games = state.games.write().await;
             let id = generate_random_id();
             let game = GameVariant::Hnefatafl(HnefataflGameState::new(id), HnefataflGameState::new(id), GameMode::Online);
+            games.push(Some(game)); // Store the new game
+
+            // Redirect to the new game page
+            let response = warp::http::Response::builder()
+                .status(302)
+                .header("Location", format!("/game/{}", id))
+                .body("Redirecting to new game...")
+                .unwrap();
+
+            Ok::<_, warp::Rejection>(response)
+        });
+
+    // Endpoint: Create a new hnefataflgame and redirect to it
+    let koch_redirect_local = warp::path("koch_redirect_local")
+        .and(warp::post())
+        .and(state_filter.clone())
+        .and_then(|state: AppState| async move {
+            let mut games = state.games.write().await;
+            let id = generate_random_id();
+            let game = GameVariant::Koch(KochGameState::new(id), KochGameState::new(id), GameMode::Local);
+            games.push(Some(game)); // Store the new game
+
+            // Redirect to the new game page
+            let response = warp::http::Response::builder()
+                .status(302)
+                .header("Location", format!("/game/{}", id))
+                .body("Redirecting to new game...")
+                .unwrap();
+
+            Ok::<_, warp::Rejection>(response)
+        });
+
+    let koch_redirect_online = warp::path("koch_redirect_online")
+        .and(warp::get())
+        .and(state_filter.clone())
+        .and_then(|state: AppState| async move {
+            let mut games = state.games.write().await;
+            let id = generate_random_id();
+            let game = GameVariant::Koch(KochGameState::new(id), KochGameState::new(id), GameMode::Online);
             games.push(Some(game)); // Store the new game
 
             // Redirect to the new game page
@@ -493,6 +533,17 @@ async fn main() {
                         GameVariant::Brandubh(game_at, _game_def, _) => {
                             if game_at.id == id {
                                 board_html = render_brandubh_board_as_html(&game_at.board);
+                                board_message = game_at.board_message.clone();
+                                game_title = game_at.game_title.clone();
+                                mapping.insert(session_id.clone().unwrap(), id);
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                        GameVariant::Koch(game_at, _game_def, _) => {
+                            if game_at.id == id {
+                                board_html = render_koch_board_as_html(&game_at.board);
                                 board_message = game_at.board_message.clone();
                                 game_title = game_at.game_title.clone();
                                 mapping.insert(session_id.clone().unwrap(), id);
@@ -734,6 +785,7 @@ async fn main() {
                         GameVariant::Tablut(game_at, _game_def, _) => game_at.id == game_id,
                         GameVariant::Hnefatafl(game_at, _game_def, _) => game_at.id == game_id,
                         GameVariant::Brandubh(game_at, _game_def, _) => game_at.id == game_id,
+                        GameVariant::Koch(game_at, _game_def, _) => game_at.id == game_id,
                     }
                 } else {
                     false
@@ -822,6 +874,36 @@ async fn main() {
                                     let process_result = game_at.process_click(click.row, click.col);
                                     let _unproccessed_result = game_def.process_click(click.row, click.col);
                                     let board_html = render_brandubh_board_as_html(&game_at.board);
+                                    move_made = game_at.move_done;
+                                    (board_unupdated, board_html, game_at.board_message.clone(), process_result, mode.clone())
+                                }
+                            } else {
+                                return Ok::<_, warp::Rejection>(warp::reply::json(&serde_json::json!({
+                                    "success": false,
+                                    "error": "Not your turn",
+                                })));
+                            }
+                        }
+                        GameVariant::Koch(game_at, game_def, mode) => {
+                            if game_at.current_turn.cell_type == KochCellType::Defender {
+                                current_turn = "defender".to_string();
+                            } else {
+                                current_turn = "attacker".to_string();
+                            }
+
+                            if click_role == &current_turn || click_role == "local"  {
+                                if click_role == "defender" {
+                                    let board_unupdated = render_koch_board_as_html(&game_def.board.clone());
+                                    let process_result = game_def.process_click(click.row, click.col);
+                                    let _unproccessed_result = game_at.process_click(click.row, click.col);
+                                    let board_html = render_koch_board_as_html(&game_def.board);
+                                    move_made = game_at.move_done;
+                                    (board_unupdated, board_html, game_def.board_message.clone(), process_result, mode.clone())
+                                } else {
+                                    let board_unupdated = render_koch_board_as_html(&game_at.board.clone());
+                                    let process_result = game_at.process_click(click.row, click.col);
+                                    let _unproccessed_result = game_def.process_click(click.row, click.col);
+                                    let board_html = render_koch_board_as_html(&game_at.board);
                                     move_made = game_at.move_done;
                                     (board_unupdated, board_html, game_at.board_message.clone(), process_result, mode.clone())
                                 }
@@ -935,6 +1017,8 @@ async fn main() {
         .or(tablut_redirect_online)
         .or(brandubh_redirect_local)
         .or(brandubh_redirect_online)
+        .or(koch_redirect_local)
+        .or(koch_redirect_online)
         .or(game_mode_local)
         .or(game_mode_online)
         .with(cors().allow_any_origin().allow_methods(vec![Method::GET, Method::POST]));
@@ -1036,6 +1120,75 @@ fn render_hnefatafl_board_as_html(board: &Vec<Vec<HnefataflCell>>) -> String {
                     r#"<img src="/images/defender.png" alt="Defender" class="piece" />"#,
                 ),
                 HnefataflCellType::King => (
+                    "king",
+                    r#"<img src="/images/queen.png" alt="King" class="piece" />"#,
+                ),
+            };
+
+            // If the cell is a corner, you can add specific styles or content for corners
+            let corner_class = if cell.is_corner {" corner-cell" } else { "" };
+
+            // If the cell is a throne, you can add specific styles or content for corners
+            let throne_class = if cell.is_throne {" throne-cell" } else { "" };
+
+            // If the cell is selected, you can add specific styles or content for corners
+            let selected_class = if cell.is_selected {" selected-cell" } else { "" };
+
+            let possible_class = if cell.is_possible_move {" possible-cell" } else { "" };
+
+            // Render the cell as an HTML table cell (<td>)
+            html.push_str(&format!(
+                r#"<td id="cell-{}-{}" class="{}{}{}{}{}" onclick="handleCellClick({}, {})">{}</td>"#,
+                row_idx, col_idx, class, corner_class, throne_class, selected_class, possible_class, row_idx, col_idx, content
+            ));
+            col_idx += 1;
+        }
+
+        // Add the row number as a right-side coordinate (no border)
+        html.push_str(&format!(
+            r#"<td class="coordinates" style="border: none;">{}</td>"#,
+            11 - row_idx
+        ));
+
+        html.push_str("</tr>"); // End the current row
+    }
+
+    // Add a bottom row for column coordinates (no border)
+    html.push_str("<tr>");
+    for col in 0..board[0].len() {
+        html.push_str(&format!(
+            r#"<td class="coordinates" style="border: none;">{}</td>"#,
+            (b'a' + col as u8) as char
+        ));
+    }
+    html.push_str("</tr>");
+
+    html.push_str("</table>");
+    html
+}
+
+/// Helper function to render the board as an HTML table
+fn render_koch_board_as_html(board: &Vec<Vec<KochCell>>) -> String {
+    let mut html = String::from("<table>");
+
+    // Add rows with board cells and right-side coordinates
+    for (row_idx, row) in board.iter().enumerate() {
+        html.push_str("<tr>"); // Start a new row
+
+        let mut col_idx = 0;
+        for cell in row {
+            // Determine the class and content based on the cell type
+            let (class, content) = match cell.cell_type {
+                KochCellType::Empty => ("empty", ""),
+                KochCellType::Attacker => (
+                    "attacker",
+                    r#"<img src="/images/attacker.png" alt="Attacker" class="piece" />"#,
+                ),
+                KochCellType::Defender => (
+                    "defender",
+                    r#"<img src="/images/defender.png" alt="Defender" class="piece" />"#,
+                ),
+                KochCellType::King => (
                     "king",
                     r#"<img src="/images/queen.png" alt="King" class="piece" />"#,
                 ),
