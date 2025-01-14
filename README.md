@@ -45,7 +45,7 @@ This project is a web-based server for playing various variants of the ancient N
 
 ### Configuration
 
-The server runs on port `3030` by default. You can change the port by modifying the [warp::serve(routes).run(([0, 0, 0, 0], 3030)).await;](http://_vscodecontentref_/14) line in [main.rs](https://github.com/farl-opa/hnefatafl/blob/master/src/main.rs).
+The server runs on port `3030` by default. You can change the port by modifying the [warp::serve(routes).run(([0, 0, 0, 0], 3030)).await;](https://github.com/farl-opa/hnefatafl/blob/9d33f34c67848cb1ce99f49da620fc63342beb09/src/main.rs#L1028) line in [main.rs](https://github.com/farl-opa/hnefatafl/blob/master/src/main.rs).
 
 ### Project Modules
 
