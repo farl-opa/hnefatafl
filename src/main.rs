@@ -1078,7 +1078,7 @@ fn render_tablut_board_as_html(board: &Vec<Vec<TablutCell>>) -> String {
         // Add the row number as a right-side coordinate (no border)
         html.push_str(&format!(
             r#"<td class="coordinates" style="border: none;">{}</td>"#,
-            11 - row_idx
+            9 - row_idx
         ));
 
         html.push_str("</tr>"); // End the current row
@@ -1284,7 +1284,7 @@ fn render_brandubh_board_as_html(board: &Vec<Vec<BrandubhCell>>) -> String {
         // Add the row number as a right-side coordinate (no border)
         html.push_str(&format!(
             r#"<td class="coordinates" style="border: none;">{}</td>"#,
-            11 - row_idx
+            7 - row_idx
         ));
 
         html.push_str("</tr>"); // End the current row
