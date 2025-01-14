@@ -54,10 +54,6 @@ The server runs on port `3030` by default. You can change the port by modifying 
 - [templates](http://_vscodecontentref_/21): HTML templates for rendering the web pages.
 - [images](http://_vscodecontentref_/22): Static assets for the game pieces and board.
 
-## Contributing
-
-Contributions are welcome! Please open an issue or submit a pull request on GitHub.
-
 ## License
 
 This project is licensed under the MIT License. See the LICENSE file for details.
