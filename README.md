@@ -38,21 +38,21 @@ This project is a web-based server for playing various variants of the ancient N
 
 ### Usage
 
-1. Open your web browser and navigate to [http://localhost:3030](http://_vscodecontentref_/13).
+1. Open your web browser and navigate to [http://localhost:3030](http://localhost:3030).
 2. Enter your username to start a session.
 3. Choose to play locally or online.
 4. Select a game variant and start playing.
 
 ### Configuration
 
-The server runs on port `3030` by default. You can change the port by modifying the [warp::serve(routes).run(([0, 0, 0, 0], 3030)).await;](http://_vscodecontentref_/14) line in [main.rs](http://_vscodecontentref_/15).
+The server runs on port `3030` by default. You can change the port by modifying the [warp::serve(routes).run(([0, 0, 0, 0], 3030)).await;](http://_vscodecontentref_/14) line in [main.rs](https://github.com/farl-opa/hnefatafl/blob/master/src/main.rs).
 
 ### Project Modules
 
-- [main.rs](http://_vscodecontentref_/16): The main entry point of the server, handles routing and session management.
-- [brandubh.rs](http://_vscodecontentref_/17), [hnefatafl.rs](http://_vscodecontentref_/18), [koch.rs](http://_vscodecontentref_/19), [tablut.rs](http://_vscodecontentref_/20): Implementations of the different game variants.
-- [templates](http://_vscodecontentref_/21): HTML templates for rendering the web pages.
-- [images](http://_vscodecontentref_/22): Static assets for the game pieces and board.
+- [main.rs](https://github.com/farl-opa/hnefatafl/blob/master/src/main.rs): The main entry point of the server, handles routing and session management.
+- [brandubh.rs](https://github.com/farl-opa/hnefatafl/blob/master/src/brandubh.rs), [hnefatafl.rs](https://github.com/farl-opa/hnefatafl/blob/master/src/hnefatafl.rs), [koch.rs](https://github.com/farl-opa/hnefatafl/blob/master/src/koch.rs), [tablut.rs](https://github.com/farl-opa/hnefatafl/blob/master/src/tablut.rs): Implementations of the different game variants.
+- [templates](https://github.com/farl-opa/hnefatafl/tree/master/templates): HTML templates for rendering the web pages.
+- [images](https://github.com/farl-opa/hnefatafl/tree/master/static/images): Static assets for the game pieces and board.
 
 ## License
 
