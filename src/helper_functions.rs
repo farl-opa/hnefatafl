@@ -1,5 +1,21 @@
-/// Helper function to render the board as an HTML table
-fn render_tablut_board_as_html(board: &Vec<Vec<TablutCell>>) -> String {
+//mod crate::tablut;
+use crate::tablut::{Cell as TablutCell, CellType as TablutCellType};
+
+//mod crate::hnefatafl;
+use crate::hnefatafl::{Cell as HnefataflCell, CellType as HnefataflCellType};
+
+//mod crate::brandubh;
+use crate::brandubh::{Cell as BrandubhCell, CellType as BrandubhCellType};
+
+//mod crate::koch;
+use crate::koch::{Cell as KochCell, CellType as KochCellType};
+
+use rand::Rng;
+use std::fs;
+
+
+// Helper function to render the board as an HTML table
+pub fn render_tablut_board_as_html(board: &Vec<Vec<TablutCell>>) -> String {
     let mut html = String::from("<table>");
 
     // Add rows with board cells and right-side coordinates
@@ -69,7 +85,7 @@ fn render_tablut_board_as_html(board: &Vec<Vec<TablutCell>>) -> String {
 
 
 /// Helper function to render the board as an HTML table
-fn render_hnefatafl_board_as_html(board: &Vec<Vec<HnefataflCell>>) -> String {
+pub fn render_hnefatafl_board_as_html(board: &Vec<Vec<HnefataflCell>>) -> String {
     let mut html = String::from("<table>");
 
     // Add rows with board cells and right-side coordinates
@@ -137,7 +153,7 @@ fn render_hnefatafl_board_as_html(board: &Vec<Vec<HnefataflCell>>) -> String {
     html
 }
 
-fn render_brandubh_board_as_html(board: &Vec<Vec<BrandubhCell>>) -> String {
+pub fn render_brandubh_board_as_html(board: &Vec<Vec<BrandubhCell>>) -> String {
     let mut html = String::from("<table>");
 
     // Add rows with board cells and right-side coordinates
@@ -205,7 +221,7 @@ fn render_brandubh_board_as_html(board: &Vec<Vec<BrandubhCell>>) -> String {
     html
 }
 
-fn render_koch_board_as_html(board: &Vec<Vec<KochCell>>) -> String {
+pub fn render_koch_board_as_html(board: &Vec<Vec<KochCell>>) -> String {
     let mut html = String::from("<table>");
 
     // Add rows with board cells and right-side coordinates
@@ -276,7 +292,7 @@ fn render_koch_board_as_html(board: &Vec<Vec<KochCell>>) -> String {
 
 
 // Helper to get the session ID from the cookie
-fn get_session_id_from_cookie(headers: &warp::http::HeaderMap) -> Option<String> {
+pub fn get_session_id_from_cookie(headers: &warp::http::HeaderMap) -> Option<String> {
     headers
         .get("cookie")
         .and_then(|cookie| cookie.to_str().ok())
@@ -297,12 +313,12 @@ fn get_session_id_from_cookie(headers: &warp::http::HeaderMap) -> Option<String>
 
 
 // Helper function to read the HTML template from a file
-fn read_html_template(path: &str) -> Result<String, std::io::Error> {
+pub fn read_html_template(path: &str) -> Result<String, std::io::Error> {
     fs::read_to_string(path)
 }
 
 /// Helper function to generate a random ID of 8 digits
-fn generate_random_id() -> usize {
+pub fn generate_random_id() -> usize {
     let mut rng = rand::thread_rng();
     let id: usize = rng.gen_range(10000000..100000000); // Generate a random number between 10000000 and 99999999
     id

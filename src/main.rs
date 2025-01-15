@@ -1,7 +1,6 @@
 #[warn(unused_variables)]
 use std::collections::HashMap;
 use std::fmt;
-use std::fs;
 use std::sync::Arc;
 
 use serde::Deserialize;
@@ -19,16 +18,16 @@ use warp::{
 };
 
 mod tablut;
-use tablut::{GameState as TablutGameState, Cell as TablutCell, CellType as TablutCellType};
+use tablut::{GameState as TablutGameState, CellType as TablutCellType};
 
 mod hnefatafl;
-use hnefatafl::{GameState as HnefataflGameState, Cell as HnefataflCell, CellType as HnefataflCellType};
+use hnefatafl::{GameState as HnefataflGameState, CellType as HnefataflCellType};
 
 mod brandubh;
-use brandubh::{GameState as BrandubhGameState, Cell as BrandubhCell, CellType as BrandubhCellType};
+use brandubh::{GameState as BrandubhGameState, CellType as BrandubhCellType};
 
 mod koch;
-use koch::{GameState as KochGameState, Cell as KochCell, CellType as KochCellType};
+use koch::{GameState as KochGameState, CellType as KochCellType};
 
 mod helper_functions;
 
@@ -41,7 +40,6 @@ use helper_functions::{
     read_html_template,
     generate_random_id};
 
-use rand::Rng;
 
 #[derive(Clone, Copy, Debug)]
 pub enum GameMode {
