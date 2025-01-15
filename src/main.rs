@@ -360,45 +360,6 @@ async fn main() {
             Ok::<_, warp::Rejection>(response)
         });
 
-    // Endpoint: Create a new hnefataflgame and redirect to it
-    let koch_redirect_local = warp::path("koch_redirect_local")
-        .and(warp::post())
-        .and(state_filter.clone())
-        .and_then(|state: AppState| async move {
-            let mut games = state.games.write().await;
-            let id = generate_random_id();
-            let game = GameVariant::Koch(KochGameState::new(id), KochGameState::new(id), GameMode::Local);
-            games.push(Some(game)); // Store the new game
-
-            // Redirect to the new game page
-            let response = warp::http::Response::builder()
-                .status(302)
-                .header("Location", format!("/game/{}", id))
-                .body("Redirecting to new game...")
-                .unwrap();
-
-            Ok::<_, warp::Rejection>(response)
-        });
-
-    let koch_redirect_online = warp::path("koch_redirect_online")
-        .and(warp::get())
-        .and(state_filter.clone())
-        .and_then(|state: AppState| async move {
-            let mut games = state.games.write().await;
-            let id = generate_random_id();
-            let game = GameVariant::Koch(KochGameState::new(id), KochGameState::new(id), GameMode::Online);
-            games.push(Some(game)); // Store the new game
-
-            // Redirect to the new game page
-            let response = warp::http::Response::builder()
-                .status(302)
-                .header("Location", format!("/game/{}", id))
-                .body("Redirecting to new game...")
-                .unwrap();
-
-            Ok::<_, warp::Rejection>(response)
-        });
-
     // Endpoint: Create a new tablut game and redirect to it
     let tablut_redirect_local = warp::path("tablut_redirect_local")
         .and(warp::post())
@@ -465,6 +426,45 @@ async fn main() {
             let mut games = state.games.write().await;
             let id = generate_random_id();
             let game = GameVariant::Brandubh(BrandubhGameState::new(id), BrandubhGameState::new(id), GameMode::Online);
+            games.push(Some(game)); // Store the new game
+
+            // Redirect to the new game page
+            let response = warp::http::Response::builder()
+                .status(302)
+                .header("Location", format!("/game/{}", id))
+                .body("Redirecting to new game...")
+                .unwrap();
+
+            Ok::<_, warp::Rejection>(response)
+        });
+
+    // Endpoint: Create a new brandubh game and redirect to it
+    let koch_redirect_local = warp::path("koch_redirect_local")
+        .and(warp::post())
+        .and(state_filter.clone())
+        .and_then(|state: AppState| async move {
+            let mut games = state.games.write().await;
+            let id = generate_random_id();
+            let game = GameVariant::Koch(KochGameState::new(id), KochGameState::new(id), GameMode::Local);
+            games.push(Some(game)); // Store the new game
+
+            // Redirect to the new game page
+            let response = warp::http::Response::builder()
+                .status(302)
+                .header("Location", format!("/game/{}", id))
+                .body("Redirecting to new game...")
+                .unwrap();
+
+            Ok::<_, warp::Rejection>(response)
+        });
+
+    let koch_redirect_online = warp::path("koch_redirect_online")
+        .and(warp::get())
+        .and(state_filter.clone())
+        .and_then(|state: AppState| async move {
+            let mut games = state.games.write().await;
+            let id = generate_random_id();
+            let game = GameVariant::Koch(KochGameState::new(id), KochGameState::new(id), GameMode::Online);
             games.push(Some(game)); // Store the new game
 
             // Redirect to the new game page
@@ -663,6 +663,7 @@ async fn main() {
                     GameVariant::Tablut(game_at, _game_def, GameMode::Online) => game_at.id == game_id,
                     GameVariant::Hnefatafl(game_at, _game_def, GameMode::Online) => game_at.id == game_id,
                     GameVariant::Brandubh(game_at, _game_def, GameMode::Online) => game_at.id == game_id,
+                    GameVariant::Koch(game_at, _game_def, GameMode::Online) => game_at.id == game_id,
                     _ => false,
                 })
             });
@@ -1078,7 +1079,7 @@ fn render_tablut_board_as_html(board: &Vec<Vec<TablutCell>>) -> String {
         // Add the row number as a right-side coordinate (no border)
         html.push_str(&format!(
             r#"<td class="coordinates" style="border: none;">{}</td>"#,
-            9 - row_idx
+            11 - row_idx
         ));
 
         html.push_str("</tr>"); // End the current row
@@ -1120,75 +1121,6 @@ fn render_hnefatafl_board_as_html(board: &Vec<Vec<HnefataflCell>>) -> String {
                     r#"<img src="/images/defender.png" alt="Defender" class="piece" />"#,
                 ),
                 HnefataflCellType::King => (
-                    "king",
-                    r#"<img src="/images/queen.png" alt="King" class="piece" />"#,
-                ),
-            };
-
-            // If the cell is a corner, you can add specific styles or content for corners
-            let corner_class = if cell.is_corner {" corner-cell" } else { "" };
-
-            // If the cell is a throne, you can add specific styles or content for corners
-            let throne_class = if cell.is_throne {" throne-cell" } else { "" };
-
-            // If the cell is selected, you can add specific styles or content for corners
-            let selected_class = if cell.is_selected {" selected-cell" } else { "" };
-
-            let possible_class = if cell.is_possible_move {" possible-cell" } else { "" };
-
-            // Render the cell as an HTML table cell (<td>)
-            html.push_str(&format!(
-                r#"<td id="cell-{}-{}" class="{}{}{}{}{}" onclick="handleCellClick({}, {})">{}</td>"#,
-                row_idx, col_idx, class, corner_class, throne_class, selected_class, possible_class, row_idx, col_idx, content
-            ));
-            col_idx += 1;
-        }
-
-        // Add the row number as a right-side coordinate (no border)
-        html.push_str(&format!(
-            r#"<td class="coordinates" style="border: none;">{}</td>"#,
-            11 - row_idx
-        ));
-
-        html.push_str("</tr>"); // End the current row
-    }
-
-    // Add a bottom row for column coordinates (no border)
-    html.push_str("<tr>");
-    for col in 0..board[0].len() {
-        html.push_str(&format!(
-            r#"<td class="coordinates" style="border: none;">{}</td>"#,
-            (b'a' + col as u8) as char
-        ));
-    }
-    html.push_str("</tr>");
-
-    html.push_str("</table>");
-    html
-}
-
-/// Helper function to render the board as an HTML table
-fn render_koch_board_as_html(board: &Vec<Vec<KochCell>>) -> String {
-    let mut html = String::from("<table>");
-
-    // Add rows with board cells and right-side coordinates
-    for (row_idx, row) in board.iter().enumerate() {
-        html.push_str("<tr>"); // Start a new row
-
-        let mut col_idx = 0;
-        for cell in row {
-            // Determine the class and content based on the cell type
-            let (class, content) = match cell.cell_type {
-                KochCellType::Empty => ("empty", ""),
-                KochCellType::Attacker => (
-                    "attacker",
-                    r#"<img src="/images/attacker.png" alt="Attacker" class="piece" />"#,
-                ),
-                KochCellType::Defender => (
-                    "defender",
-                    r#"<img src="/images/defender.png" alt="Defender" class="piece" />"#,
-                ),
-                KochCellType::King => (
                     "king",
                     r#"<img src="/images/queen.png" alt="King" class="piece" />"#,
                 ),
@@ -1284,7 +1216,7 @@ fn render_brandubh_board_as_html(board: &Vec<Vec<BrandubhCell>>) -> String {
         // Add the row number as a right-side coordinate (no border)
         html.push_str(&format!(
             r#"<td class="coordinates" style="border: none;">{}</td>"#,
-            7 - row_idx
+            11 - row_idx
         ));
 
         html.push_str("</tr>"); // End the current row
@@ -1303,6 +1235,76 @@ fn render_brandubh_board_as_html(board: &Vec<Vec<BrandubhCell>>) -> String {
     html.push_str("</table>");
     html
 }
+
+fn render_koch_board_as_html(board: &Vec<Vec<KochCell>>) -> String {
+    let mut html = String::from("<table>");
+
+    // Add rows with board cells and right-side coordinates
+    for (row_idx, row) in board.iter().enumerate() {
+        html.push_str("<tr>"); // Start a new row
+
+        let mut col_idx = 0;
+        for cell in row {
+            // Determine the class and content based on the cell type
+            let (class, content) = match cell.cell_type {
+                KochCellType::Empty => ("empty", ""),
+                KochCellType::Attacker => (
+                    "attacker",
+                    r#"<img src="/images/attacker.png" alt="Attacker" class="piece" />"#,
+                ),
+                KochCellType::Defender => (
+                    "defender",
+                    r#"<img src="/images/defender.png" alt="Defender" class="piece" />"#,
+                ),
+                KochCellType::King => (
+                    "king",
+                    r#"<img src="/images/queen.png" alt="King" class="piece" />"#,
+                ),
+            };
+
+            // If the cell is a corner, you can add specific styles or content for corners
+            let corner_class = if cell.is_corner {" corner-cell" } else { "" };
+
+            // If the cell is a throne, you can add specific styles or content for corners
+            let throne_class = if cell.is_throne {" throne-cell" } else { "" };
+
+            // If the cell is selected, you can add specific styles or content for corners
+            let selected_class = if cell.is_selected {" selected-cell" } else { "" };
+
+            let possible_class = if cell.is_possible_move {" possible-cell" } else { "" };
+
+            // Render the cell as an HTML table cell (<td>)
+            html.push_str(&format!(
+                r#"<td id="cell-{}-{}" class="{}{}{}{}{}" onclick="handleCellClick({}, {})">{}</td>"#,
+                row_idx, col_idx, class, corner_class, throne_class, selected_class, possible_class, row_idx, col_idx, content
+            ));
+            col_idx += 1;
+        }
+
+        // Add the row number as a right-side coordinate (no border)
+        html.push_str(&format!(
+            r#"<td class="coordinates" style="border: none;">{}</td>"#,
+            11 - row_idx
+        ));
+
+        html.push_str("</tr>"); // End the current row
+    }
+
+    // Add a bottom row for column coordinates (no border)
+    html.push_str("<tr>");
+    for col in 0..board[0].len() {
+        html.push_str(&format!(
+            r#"<td class="coordinates" style="border: none;">{}</td>"#,
+            (b'a' + col as u8) as char
+        ));
+    }
+    html.push_str("</tr>");
+
+    html.push_str("</table>");
+    html
+}
+
+
 
 // Helper to get the session ID from the cookie
 fn get_session_id_from_cookie(headers: &warp::http::HeaderMap) -> Option<String> {

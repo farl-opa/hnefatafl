@@ -223,7 +223,28 @@ impl GameState {
             }
         } else {
             // Second click: Select an empty cell to move to
-            if clicked_cell.cell_type != CellType::Empty {
+            if clicked_cell.cell_type == CellType::Defender && self.current_turn.cell_type == CellType::Attacker {
+                self.board[self.last_click.0][self.last_click.1].is_selected = false;
+                for cell in self.board.iter_mut().flat_map(|r| r.iter_mut()) {
+                        cell.is_possible_move = false;
+                    }
+                return Ok(());
+            }
+            else if clicked_cell.cell_type == CellType::King && self.current_turn.cell_type == CellType::Attacker {
+                self.board[self.last_click.0][self.last_click.1].is_selected = false;
+                for cell in self.board.iter_mut().flat_map(|r| r.iter_mut()) {
+                        cell.is_possible_move = false;
+                    }
+                return Ok(());
+            }
+            else if clicked_cell.cell_type == CellType::Attacker && self.current_turn.cell_type == CellType::Defender {
+                self.board[self.last_click.0][self.last_click.1].is_selected = false;
+                for cell in self.board.iter_mut().flat_map(|r| r.iter_mut()) {
+                        cell.is_possible_move = false;
+                    }
+                return Ok(());
+            }
+            else if clicked_cell.cell_type != CellType::Empty {
 
                 if self.board[self.last_click.0][self.last_click.1].cell_type == clicked_cell.cell_type {
                     for cell in self.board.iter_mut().flat_map(|r| r.iter_mut()) {
@@ -579,27 +600,51 @@ impl GameState {
             .enumerate()
             .find_map(|(r, row)| row.iter().position(|c| c.cell_type == CellType::King).map(|c| (r, c)));
     
-        if let Some((kr, kc)) = king_pos {
-            let neighbors = [
-                (kr.wrapping_sub(1), kc),
-                (kr + 1, kc),
-                (kr, kc.wrapping_sub(1)),
-                (kr, kc + 1),
-            ];
-    
-            if neighbors
-                .iter()
-                .filter(|&&(nr, nc)| self.is_within_bounds((nr, nc)))
-                .all(|&(nr, nc)| self.board[nr][nc].cell_type == CellType::Attacker)
-            {
-                return Some(Cell {
-                    cell_type: CellType::Attacker,
-                    is_corner: false,
-                    is_throne: false,
-                    is_selected: false,
-                    is_possible_move: false,
-                }); // Attackers win
+        if self.current_turn.cell_type == CellType::Attacker {
+            if let Some((kr, kc)) = king_pos {
+                let neighbors = [
+                    (kr.wrapping_sub(1), kc),
+                    (kr + 1, kc),
+                    (kr, kc.wrapping_sub(1)),
+                    (kr, kc + 1),
+                ];
+        
+                if neighbors
+                    .iter()
+                    .filter(|&&(nr, nc)| self.is_within_bounds((nr, nc)))
+                    .all(|&(nr, nc)| self.board[nr][nc].cell_type == CellType::Attacker)
+                {
+                    return Some(Cell {
+                        cell_type: CellType::Attacker,
+                        is_corner: false,
+                        is_throne: false,
+                        is_selected: false,
+                        is_possible_move: false,
+                    }); // Attackers win
+                }
             }
+        }
+
+        // Check if there are no valid moves for any defender
+        let no_valid_moves = self.board.iter().enumerate().all(|(r, row)| {
+            row.iter().enumerate().all(|(c, cell)| {
+                if cell.cell_type == CellType::Defender || cell.cell_type == CellType::King {
+                    // Check if this defender has any valid moves
+                    self.calculate_valid_moves((r, c)).is_empty()
+                } else {
+                    true
+                }
+            })
+        });
+        
+        if no_valid_moves {
+            return Some(Cell {
+                cell_type: CellType::Attacker,
+                is_corner: false,
+                is_throne: false,
+                is_selected: false,
+                is_possible_move: false,
+            }); // Attackers win
         }
     
         None

@@ -158,7 +158,7 @@ impl GameState {
             click_count: 1,
             from: (0, 0),
             board_message: "Current turn: Attacker".to_string(),
-            game_title: "Hnefatafl".to_string(),
+            game_title: "Koch".to_string(),
             last_click: (0, 0),
             id: id,
             move_done: false,
@@ -224,7 +224,28 @@ impl GameState {
             }
         } else {
             // Second click: Select an empty cell to move to
-            if clicked_cell.cell_type != CellType::Empty {
+            if clicked_cell.cell_type == CellType::Defender && self.current_turn.cell_type == CellType::Attacker {
+                self.board[self.last_click.0][self.last_click.1].is_selected = false;
+                for cell in self.board.iter_mut().flat_map(|r| r.iter_mut()) {
+                        cell.is_possible_move = false;
+                    }
+                return Ok(());
+            }
+            else if clicked_cell.cell_type == CellType::King && self.current_turn.cell_type == CellType::Attacker {
+                self.board[self.last_click.0][self.last_click.1].is_selected = false;
+                for cell in self.board.iter_mut().flat_map(|r| r.iter_mut()) {
+                        cell.is_possible_move = false;
+                    }
+                return Ok(());
+            }
+            else if clicked_cell.cell_type == CellType::Attacker && self.current_turn.cell_type == CellType::Defender {
+                self.board[self.last_click.0][self.last_click.1].is_selected = false;
+                for cell in self.board.iter_mut().flat_map(|r| r.iter_mut()) {
+                        cell.is_possible_move = false;
+                    }
+                return Ok(());
+            }
+            else if clicked_cell.cell_type != CellType::Empty {
 
                 if self.board[self.last_click.0][self.last_click.1].cell_type == clicked_cell.cell_type {
                     for cell in self.board.iter_mut().flat_map(|r| r.iter_mut()) {
@@ -580,66 +601,106 @@ impl GameState {
             .enumerate()
             .find_map(|(r, row)| row.iter().position(|c| c.cell_type == CellType::King).map(|c| (r, c)));
     
-        if let Some((kr, kc)) = king_pos {
-            let neighbors = [
-                (kr.wrapping_sub(1), kc),
-                (kr + 1, kc),
-                (kr, kc.wrapping_sub(1)),
-                (kr, kc + 1),
-            ];
-            
-            if king_pos == Some((5, 5)) {
-                if neighbors
-                    .iter()
-                    .filter(|&&(nr, nc)| self.is_within_bounds((nr, nc)))
-                    .all(|&(nr, nc)| self.board[nr][nc].cell_type == CellType::Attacker)
-                {
-                    return Some(Cell {
-                        cell_type: CellType::Attacker,
-                        is_corner: false,
-                        is_throne: false,
-                        is_selected: false,
-                        is_possible_move: false,
-                    }); // Attackers win
-                }
-            } else if king_pos == Some((4, 5)) || king_pos == Some((5, 4)) || king_pos == Some((5, 6)) || king_pos == Some((6, 5)) {
-                if neighbors
-                    .iter()
-                    .filter(|&&(nr, nc)| self.is_within_bounds((nr, nc)) && (nr, nc) != (5, 5))
-                    .all(|&(nr, nc)| self.board[nr][nc].cell_type == CellType::Attacker)
-                {
-                    return Some(Cell {
-                        cell_type: CellType::Attacker,
-                        is_corner: false,
-                        is_throne: false,
-                        is_selected: false,
-                        is_possible_move: false,
-                    }); // Attackers win
-                }
-            } else {
-                let opposite_sides = [
-                    ((kr.wrapping_sub(1), kc), (kr + 1, kc)), // Up and Down
-                    ((kr, kc.wrapping_sub(1)), (kr, kc + 1)), // Left and Right
+        if self.current_turn.cell_type == CellType::Attacker {
+            if let Some((kr, kc)) = king_pos {
+                let neighbors = [
+                    (kr.wrapping_sub(1), kc),
+                    (kr + 1, kc),
+                    (kr, kc.wrapping_sub(1)),
+                    (kr, kc + 1),
                 ];
-
-                for &(side1, side2) in &opposite_sides {
-                    if self.is_within_bounds(side1) && self.is_within_bounds(side2) {
-                        if self.board[side1.0][side1.1].cell_type == CellType::Attacker
-                            && self.board[side2.0][side2.1].cell_type == CellType::Attacker
-                        {
-                            return Some(Cell {
-                                cell_type: CellType::Attacker,
-                                is_corner: false,
-                                is_throne: false,
-                                is_selected: false,
-                                is_possible_move: false,
-                            }); // Attackers win
-                        }
+                
+                if king_pos == Some((5, 5)) {
+                    if neighbors
+                        .iter()
+                        .filter(|&&(nr, nc)| self.is_within_bounds((nr, nc)))
+                        .all(|&(nr, nc)| self.board[nr][nc].cell_type == CellType::Attacker)
+                    {
+                        return Some(Cell {
+                            cell_type: CellType::Attacker,
+                            is_corner: false,
+                            is_throne: false,
+                            is_selected: false,
+                            is_possible_move: false,
+                        }); // Attackers win
                     }
-                }
-            }
+                } else if king_pos == Some((4, 5)) || king_pos == Some((5, 4)) || king_pos == Some((5, 6)) || king_pos == Some((6, 5)) {
+                    if neighbors
+                        .iter()
+                        .filter(|&&(nr, nc)| self.is_within_bounds((nr, nc)) && (nr, nc) != (5, 5))
+                        .all(|&(nr, nc)| self.board[nr][nc].cell_type == CellType::Attacker)
+                    {
+                        return Some(Cell {
+                            cell_type: CellType::Attacker,
+                            is_corner: false,
+                            is_throne: false,
+                            is_selected: false,
+                            is_possible_move: false,
+                        }); // Attackers win
+                    }
+                } else {
+                    let opposite_sides = [
+                        ((kr.wrapping_sub(1), kc), (kr + 1, kc)), // Up and Down
+                        ((kr, kc.wrapping_sub(1)), (kr, kc + 1)), // Left and Right
+                    ];
 
-            
+                    for &(side1, side2) in &opposite_sides {
+                        if self.is_within_bounds(side1) && self.is_within_bounds(side2) {
+                            if self.board[side1.0][side1.1].cell_type == CellType::Attacker 
+                                && self.board[side2.0][side2.1].cell_type == CellType::Attacker
+                            {
+                                return Some(Cell {
+                                    cell_type: CellType::Attacker,
+                                    is_corner: false,
+                                    is_throne: false,
+                                    is_selected: false,
+                                    is_possible_move: false,
+                                }); // Attackers win
+                            }
+
+                            // Corners are also hostile to the king
+                            if self.board[side1.0][side1.1].is_corner && self.board[side2.0][side2.1].cell_type == CellType::Attacker
+                                || self.board[side1.0][side1.1].cell_type == CellType::Attacker && self.board[side2.0][side2.1].is_corner
+                            {
+                                return Some(Cell {
+                                    cell_type: CellType::Attacker,
+                                    is_corner: false,
+                                    is_throne: false,
+                                    is_selected: false,
+                                    is_possible_move: false,
+                                }); // Attackers win
+                            }
+                        }
+                        
+                    }
+
+
+                }
+
+                
+            }
+        }
+
+        // Check if there are no valid moves for any defender
+        let no_valid_moves = self.board.iter().enumerate().all(|(r, row)| {
+            row.iter().enumerate().all(|(c, cell)| {
+                if cell.cell_type == CellType::Defender || cell.cell_type == CellType::King {
+                    // Check if this defender has any valid moves
+                    self.calculate_valid_moves((r, c)).is_empty()
+                } else {
+                    true
+                }
+            })
+        });
+        
+        if no_valid_moves {
+            return Some(Cell {
+                cell_type: CellType::Attacker,
+                is_corner: false,
+                is_throne: false,
+                is_selected: false,
+                is_possible_move: false,
+            }); // Attackers win
         }
     
         None
