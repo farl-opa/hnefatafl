@@ -1,5 +1,5 @@
 /// Helper function to render the board as an HTML table
-n render_tablut_board_as_html(board: &Vec<Vec<TablutCell>>) -> String {
+fn render_tablut_board_as_html(board: &Vec<Vec<TablutCell>>) -> String {
     let mut html = String::from("<table>");
 
     // Add rows with board cells and right-side coordinates
