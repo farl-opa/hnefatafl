@@ -685,9 +685,9 @@ async fn main() {
                     } else {
                         None
                     }
-                }).unwrap();
+                });
 
-                let rival_role = players.get(rival_id).unwrap().1.clone();
+                let rival_role = players.get(rival_id.unwrap()).unwrap().1.clone();
                 let own_role: String;
 
                 if rival_role == "attacker" {
